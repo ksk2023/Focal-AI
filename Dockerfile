@@ -1,8 +1,9 @@
 FROM modelscope-registry.cn-beijing.cr.aliyuncs.com/modelscope-repo/python:3.10
 
-# Install Nginx and system dependencies for OpenCV/MediaPipe
+# Install Nginx, curl and system dependencies for OpenCV/MediaPipe
 RUN apt-get update && apt-get install -y \
     nginx \
+    curl \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -17,21 +18,21 @@ WORKDIR /home/user/app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
+# Copy all application files
 COPY . .
 
-# Copy Nginx config
+# Setup Nginx config
 COPY nginx.conf /etc/nginx/sites-available/default
+RUN rm -f /etc/nginx/sites-enabled/default && \
+    ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
-# Create persistent storage symlink for user_styles
-RUN mkdir -p /mnt/workspace/user_styles && \
-    rm -rf /home/user/app/user_styles && \
-    ln -s /mnt/workspace/user_styles /home/user/app/user_styles
+# Create user_styles directory (will be linked to persistent storage at runtime)
+RUN mkdir -p /home/user/app/user_styles/images
 
 # Make start script executable
 RUN chmod +x start.sh
 
-# Expose port 7860
+# Expose port 7860 (required by ModelScope)
 EXPOSE 7860
 
 # Start services
