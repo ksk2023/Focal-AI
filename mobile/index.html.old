@@ -1,0 +1,2664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#667eea">
+    <title>AI 拍照助手</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="icon-192.svg">
+
+    <!-- 纯视觉模式，无需 MediaPipe -->
+
+    <style>
+        :root {
+            --app-bg: #000000;
+            --panel-bg: rgba(20, 20, 20, 0.85);
+            --accent-color: #ffd60a;
+            /* iOS Yellow */
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --safe-area-top: env(safe-area-inset-top, 20px);
+            --safe-area-bottom: env(safe-area-inset-bottom, 20px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+        }
+
+        /* Full Screen Mobile App */
+        body {
+            background: #000;
+            color: var(--text-primary);
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            /* Dynamic Viewport Height */
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: 0;
+        }
+
+        .app {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            position: relative;
+            max-width: 600px;
+            /* Limit width on desktops */
+            margin: 0 auto;
+            /* Center on desktop */
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            /* Shadow on desktop */
+        }
+
+        @media (max-width: 600px) {
+            .app {
+                box-shadow: none;
+                max-width: 100%;
+            }
+        }
+
+        /* 顶部状态栏区域 */
+        .top-bar {
+            height: 60px;
+            padding-top: var(--safe-area-top);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-left: 20px;
+            padding-right: 20px;
+            z-index: 10;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+        }
+
+        /* 主取景器 - 占据中间大部分 */
+        .viewfinder {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            border-radius: 20px;
+            /* 轻微圆角 */
+            margin: 0 10px;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            /* 镜像 */
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* 底部控制区 */
+        .controls-area {
+            height: 160px;
+            padding-bottom: var(--safe-area-bottom);
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        /* 模式选择器 (Photo/Video/Smart) */
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 20px;
+        }
+
+        .mode-item {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 12px;
+            transition: all 0.3s;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+
+        .mode-item.active {
+            color: #ffd60a;
+            background: rgba(255, 214, 10, 0.15);
+        }
+
+        /* 底部按钮栏 */
+        .action-bar {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 40px 30px;
+        }
+
+        /* 相册预览按钮 */
+        .btn-gallery {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .btn-gallery img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* iOS 快门按钮 */
+        .shutter-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid #fff;
+            padding: 3px;
+            background: transparent;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .shutter-inner {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .shutter-btn:active {
+            transform: scale(0.95);
+        }
+
+        .shutter-btn:active .shutter-inner {
+            transform: scale(0.9);
+            background: #ccc;
+        }
+
+        /* 翻转/设置按钮 */
+        .btn-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: none;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+        }
+
+        /* AI 灵感状态悬浮胶囊 */
+        .ai-capsule {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 30px;
+            padding: 8px 16px 8px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+            transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        .ai-capsule.active {
+            background: rgba(10, 132, 255, 0.85);
+            /* iOS Blue */
+            box-shadow: 0 8px 32px rgba(10, 132, 255, 0.3);
+        }
+
+        .ai-icon-anim {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .ai-text {
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .ai-controls-float {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 50;
+        }
+
+        .glass-btn {
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        /* 麦克风按钮 */
+        .btn-mic {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #00b894, #00cec9);
+            color: #fff;
+            font-size: 24px;
+            box-shadow: 0 8px 25px rgba(0, 184, 148, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .btn-mic.recording {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+            animation: pulse-recording 0.8s infinite;
+        }
+
+        /* VAD 状态指示器 */
+        .vad-indicator {
+            position: absolute;
+            top: 90px;
+            right: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(0, 184, 148, 0.3);
+            border-radius: 20px;
+            font-size: 12px;
+            color: #00ff78;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .vad-indicator.active {
+            opacity: 1;
+        }
+
+        .vad-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff78;
+            animation: vad-blink 1s infinite;
+        }
+
+        /* MCP 状态指示器 */
+        .mcp-indicator {
+            position: absolute;
+            top: 90px;
+            right: 50px;
+            font-size: 16px;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+
+        .mcp-indicator.active {
+            opacity: 1;
+        }
+
+        @keyframes vad-blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* 用户打断提示 */
+        .interrupt-toast {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 107, 107, 0.95);
+            color: #fff;
+            padding: 16px 32px;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 500;
+            display: none;
+            animation: interrupt-pop 0.3s ease-out;
+            z-index: 150;
+        }
+
+        .interrupt-toast.show {
+            display: block;
+        }
+
+        @keyframes interrupt-pop {
+            0% {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse-recording {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+            }
+
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0 8px 35px rgba(255, 107, 107, 0.8);
+            }
+        }
+
+        /* 灵感拍摄按钮 */
+        .btn-inspiration {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            font-size: 14px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-inspiration.active {
+            background: linear-gradient(135deg, #00d9ff, #00b894);
+            border-color: transparent;
+            box-shadow: 0 4px 20px rgba(0, 217, 255, 0.4);
+        }
+
+        .btn-inspiration .inspiration-icon {
+            font-size: 18px;
+        }
+
+        /* AI 控制栏 */
+        .ai-controls {
+            position: absolute;
+            bottom: 100px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+        }
+
+        .ai-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 12px;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+
+        .ai-btn span:first-child {
+            font-size: 24px;
+        }
+
+        .ai-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 姿势下拉选择器 */
+        .pose-dropdown {
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 35px;
+        }
+
+        .pose-dropdown option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        /* AI 状态栏 */
+        .ai-status-bar {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: linear-gradient(135deg, rgba(0, 217, 255, 0.9), rgba(0, 184, 148, 0.9));
+            border-radius: 20px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 20px rgba(0, 217, 255, 0.3);
+            z-index: 100;
+            opacity: 1;
+            transition: opacity 0.8s ease-out;
+        }
+
+        .ai-status-bar.fade-out {
+            opacity: 0;
+        }
+
+        .ai-status-icon {
+            font-size: 18px;
+        }
+
+        /* 照片预览 */
+        .photo-preview {
+            position: absolute;
+            bottom: 140px;
+            left: 32px;
+            width: 70px;
+            height: 70px;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 3px solid #fff;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+
+        .photo-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Settings Action Sheet */
+        .settings-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 200;
+            display: none;
+            backdrop-filter: blur(2px);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .settings-overlay.show {
+            display: block;
+            opacity: 1;
+        }
+
+        .settings-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(30, 30, 30, 0.85);
+            /* Glass dark */
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border-radius: 20px;
+            padding: 24px 20px 40px;
+            transform: translateY(110%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .settings-overlay.show .settings-panel {
+            transform: translateY(0);
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .settings-header h2 {
+            font-size: 17px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .settings-group {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .toggle-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .toggle-item:last-child {
+            border-bottom: none;
+        }
+
+        .toggle-item span {
+            font-size: 16px;
+        }
+
+        /* iOS Toggle Switch */
+        input[type="checkbox"] {
+            -webkit-appearance: none;
+            width: 50px;
+            height: 30px;
+            background: rgba(120, 120, 128, 0.32);
+            border-radius: 15px;
+            position: relative;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        input[type="checkbox"]:checked {
+            background: #34c759;
+            /* iOS Green */
+        }
+
+        input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: #fff;
+            top: 2px;
+            left: 2px;
+            transition: 0.3s;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        input[type="checkbox"]:checked::after {
+            transform: translateX(20px);
+        }
+
+        .setting-item {
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+
+        .setting-item label {
+            display: block;
+            margin-bottom: 12px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 加载状态 */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            z-index: 200;
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+
+        .loading p {
+            color: #fff;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #ffd60a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* AI 分析中状态 */
+        .ai-analyzing {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .ai-analyzing.active {
+            opacity: 1;
+        }
+
+        .ai-analyzing .analyzing-dot {
+            width: 8px;
+            height: 8px;
+            background: #ffd60a;
+            border-radius: 50%;
+            animation: pulse-dot 1s infinite;
+        }
+
+        .ai-analyzing .analyzing-text {
+            color: #fff;
+            font-size: 14px;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(0.8);
+            }
+        }
+
+        /* 变焦控制 */
+        .zoom-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px;
+            border-radius: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        .zoom-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: transparent;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffd60a;
+            transform: scale(1.1);
+            font-weight: 800;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <!-- 顶部状态栏 -->
+        <div class="top-bar" style="position: relative; justify-content: flex-end;">
+
+            <!-- 灵感模式动态岛 (绝对居中) -->
+            <div
+                style="position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; z-index: 20;">
+                <div class="ai-capsule" id="aiCapsule" onclick="toggleInspirationMode()">
+                    <span class="ai-icon-anim" id="aiIcon">✨</span>
+                    <span class="ai-text" id="aiStatusText">AI 助手</span>
+                </div>
+
+                <div class="vad-indicator" id="vadIndicator"
+                    style="position:static; padding:0; background:none; opacity:0; transition:opacity 0.3s;">
+                    <span class="vad-dot" style="background:#34c759;"></span>
+                </div>
+
+                <!-- MCP 状态指示器 -->
+                <div class="mcp-indicator" id="mcpIndicator" title="MCP 图片理解" style="position: static; opacity: 0.5;">
+                    🔗
+                </div>
+            </div>
+
+            <!-- 设置按钮 (右上角) -->
+            <button class="btn-icon" onclick="toggleSettings()">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                    </path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- 主取景器 -->
+        <div class="viewfinder">
+            <video id="video" playsinline autoplay></video>
+            <canvas id="canvas"></canvas>
+
+            <!-- 分数和反馈 -->
+            <div class="score-card" id="scoreCard" style="display: none;">
+                <div class="value" id="scoreValue">0%</div>
+            </div>
+
+            <!-- 悬浮的 AI 控制按钮 (灵感模式下显示) -->
+            <div class="ai-controls-float" id="aiControls" style="display: none;">
+                <div class="glass-btn" onclick="toggleMicrophone()" id="micBtnBox">
+                    <span id="micIcon">🎤</span> <span id="micText">语音</span>
+                </div>
+                <div class="glass-btn" style="padding: 0;">
+                    <select class="pose-dropdown" id="poseDropdown" onchange="changePose(this.value)"
+                        style="background:transparent; border:none; color:white; padding: 8px 16px; font-size:13px;">
+                        <optgroup label="📱 自拍">
+                            <option value="selfie_smile">😊 微笑自拍</option>
+                            <option value="selfie_peace">✌️ 比耶自拍</option>
+                            <option value="selfie_cute">🥰 可爱嘟嘴</option>
+                            <option value="selfie_cool">😎 酷帅侧脸</option>
+                        </optgroup>
+                        <optgroup label="📷 他拍">
+                            <option value="standing_casual">🧍 自然站立</option>
+                            <option value="hands_on_hips">🙆 双手叉腰</option>
+                            <option value="photo_pose">📸 拍照姿势</option>
+                            <option value="touch_hair">💇 撩头发</option>
+                            <option value="peace_sign">✌️ 比耶</option>
+                            <option value="heart_hands">💕 双手比心</option>
+                        </optgroup>
+                        <optgroup label="👥 合影">
+                            <option value="group_shoulder">🤝 搭肩合影</option>
+                            <option value="group_heart">💗 组合比心</option>
+                        </optgroup>
+                        <optgroup label="💑 情侣">
+                            <option value="couple_heart">💕 情侣比心</option>
+                            <option value="couple_back">🚶‍♂️ 情侣背影</option>
+                        </optgroup>
+                        <optgroup label="🍰 美食">
+                            <option value="sitting_coffee">☕ 坐着喝东西</option>
+                            <option value="chin_on_hand">🤔 托腮思考</option>
+                            <option value="food_pose">🍕 美食打卡</option>
+                        </optgroup>
+                        <optgroup label="🌳 户外">
+                            <option value="walking_away">🚶 背影行走</option>
+                            <option value="looking_back">🔙 回眸一笑</option>
+                            <option value="arms_spread">🙌 张开双臂</option>
+                        </optgroup>
+                        <optgroup label="💪 休闲">
+                            <option value="arms_crossed">🤗 双手抱胸</option>
+                            <option value="hand_in_pocket">🙋 单手插兜</option>
+                            <option value="wave_hello">👋 挥手打招呼</option>
+                            <option value="leaning_wall">😌 倚靠墙壁</option>
+                            <option value="thumbs_up">👍 竖大拇指</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
+            <div id="feedback" class="feedback">点击 ✨ 开启智能拍照</div>
+            <div class="countdown" id="countdown">3</div>
+            <div class="perfect" id="perfectBadge">PERFECT!</div>
+            <div class="interrupt-toast" id="interruptToast">👤 您说，我在听...</div>
+
+            <!-- AI 分析中状态 -->
+            <div class="ai-analyzing" id="aiAnalyzing">
+                <span class="analyzing-dot"></span>
+                <span class="analyzing-text">AI 思考中...</span>
+            </div>
+
+            <!-- 变焦控制 -->
+            <div class="zoom-controls">
+                <button class="zoom-btn active" onclick="setZoom(1.0, this)">1x</button>
+                <button class="zoom-btn" onclick="setZoom(1.5, this)">1.5</button>
+                <button class="zoom-btn" onclick="setZoom(2.0, this)">2x</button>
+            </div>
+
+            <div class="loading" id="loading" style="display:flex;">
+                <div class="spinner"></div>
+                <p>正在初始化 AI 导演...</p>
+            </div>
+        </div>
+
+        <!-- 底部控制区 -->
+        <div class="controls-area">
+            <div class="mode-selector">
+                <span class="mode-item">VIDEO</span>
+                <span class="mode-item active">PHOTO</span>
+                <span class="mode-item" onclick="toggleInspirationMode()">PORTRAIT</span>
+            </div>
+
+            <div class="action-bar">
+                <!-- 相册 -->
+                <div class="btn-gallery" onclick="showGallery()">
+                    <div id="galleryPreview" style="width:100%; height:100%; background: #333;">
+                        <img id="previewImg" src="" style="width:100%; height:100%; object-fit:cover; display:none;">
+                    </div>
+                </div>
+
+                <!-- 快门 -->
+                <button class="shutter-btn" id="captureBtn" onclick="capture()">
+                    <div class="shutter-inner"></div>
+                </button>
+
+                <!-- 翻转 -->
+                <button class="btn-icon" onclick="switchCamera()">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 设置面板 (Action Sheet) -->
+        <div class="settings-overlay" id="settingsOverlay" onclick="toggleSettings()">
+            <div class="settings-panel" onclick="event.stopPropagation()">
+                <div class="settings-header">
+                    <h2>设置</h2>
+                    <button onclick="toggleSettings()"
+                        style="background:rgba(120,120,128,0.12); border-radius:50%; width:30px; height:30px; border:none; color:#888;">✕</button>
+                </div>
+
+                <div class="settings-group">
+                    <div class="toggle-item">
+                        <span>智能打断 (双工模式)</span>
+                        <input type="checkbox" id="enableVAD" onchange="toggleVADSetting(this.checked)">
+                    </div>
+
+                    <div class="toggle-item">
+                        <span>显示引导框</span>
+                        <input type="checkbox" id="showGuide" checked>
+                    </div>
+
+                    <div class="toggle-item">
+                        <span>显示骨骼</span>
+                        <input type="checkbox" id="showSkeleton" checked>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="setting-item">
+                        <label>自动拍照阈值: <span id="thresholdText">85</span>%</label>
+                        <input type="range" id="threshold" min="70" max="100" value="85"
+                            oninput="thresholdText.textContent=this.value">
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="setting-item">
+                        <label>后端地址</label>
+                        <input type="text" id="apiUrlInput" value="" 
+                            style="width:100%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:8px; color:#fff; font-size:14px;"
+                            placeholder="http://192.168.x.x:8000">
+                        <button onclick="updateApiUrl()" 
+                            style="margin-top:8px; width:100%; background:#ffd60a; border:none; border-radius:8px; padding:8px; color:#000; font-weight:500; cursor:pointer;">
+                            连接测试
+                        </button>
+                        <p id="apiStatus" style="margin-top:8px; font-size:12px; color:rgba(255,255,255,0.6);"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let pose, camera;
+        let isGuiding = false;
+        let score = 0;
+        let highScoreTime = null;
+        let voiceOn = true;
+        let currentPose = 'selfie_smile';
+        let poses = {};
+
+        // 语音识别变量
+        let recognition = null;
+        let isRecording = false;
+
+        // ===== 灵感拍摄模式 =====
+        let inspirationMode = false;  // 默认关闭
+
+        // AI 分析相关 - 自动检测后端地址
+        function getBackendUrl() {
+            // 1. 优先从 URL 参数获取（用于手机测试）
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('api')) {
+                return urlParams.get('api');
+            }
+            // 2. 优先使用当前主机的 8000 端口（自动适配手机/电脑）
+            const currentHost = window.location.hostname;
+            return `http://${currentHost}:8000`;
+        }
+        const API_URL = getBackendUrl();
+        console.log('🔗 后端地址:', API_URL);
+
+        let isAnalyzing = false;
+        let lastAnalysisTime = 0;
+        const ANALYSIS_INTERVAL = 5000;  // 5秒间隔，避免频繁请求导致 429
+
+        // ===== 智能语音交互系统 =====
+        let conversationMode = false;  // 对话模式（始终监听）
+        let lastUserQuery = '';  // 用户上次的问题
+        let aiSpeaking = false;  // AI 是否正在说话
+        let quietMode = false;  // 安静模式（不主动引导）
+
+        // 切换灵感拍摄模式（丝滑启动）
+        function toggleInspirationMode() {
+            inspirationMode = !inspirationMode;
+
+            const aiCapsule = document.getElementById('aiCapsule');
+            const aiStatusText = document.getElementById('aiStatusText');
+            const aiControls = document.getElementById('aiControls'); // Float controls
+            const feedback = document.getElementById('feedback');
+            const vadIndicator = document.getElementById('vadIndicator');
+
+            if (inspirationMode) {
+                // 启用灵感模式
+                unlockAudio(); // 用户点击按钮时解锁音频上下文
+                aiCapsule.classList.add('active');
+                aiStatusText.textContent = '智能拍照模式';
+                aiControls.style.display = 'flex';
+
+                feedback.style.display = 'block';
+                feedback.textContent = '🎤 请直接说话，比如"帮我拍照"';
+
+                // 显示 VAD 指示器
+                vadIndicator.style.opacity = '1';
+
+                // 启用持续监听模式
+                conversationMode = true;
+
+                // 启动智能语音识别
+                const smartRec = initSmartRecognition();
+                if (smartRec) {
+                    try {
+                        smartRec.start();
+                    } catch (e) {
+                        console.error('启动语音识别失败:', e);
+                    }
+                }
+
+                // 启用 VAD 监听
+                enableInterruptMode();
+
+                speak('智能模式已启动');
+                console.log('✨ 智能拍照模式已启动');
+            } else {
+                // 关闭灵感模式
+                aiCapsule.classList.remove('active');
+                aiStatusText.textContent = 'AI 助手';
+                aiControls.style.display = 'none';
+
+                feedback.style.display = 'none';
+                vadIndicator.style.opacity = '0';
+
+                // 关闭持续监听
+                conversationMode = false;
+
+                // 停止语音识别
+                if (recognition) {
+                    try {
+                        recognition.stop();
+                    } catch (e) { }
+                }
+
+                // 禁用 VAD
+                disableVAD();
+
+                console.log('📷 切换到普通拍摄模式');
+            }
+        }
+
+        // Settings Toggle
+        function toggleSettings() {
+            const overlay = document.getElementById('settingsOverlay');
+            if (overlay.classList.contains('show')) {
+                overlay.classList.remove('show');
+            } else {
+                overlay.classList.add('show');
+            }
+        }
+
+        // 更新后端地址
+        function updateApiUrl() {
+            const input = document.getElementById('apiUrlInput');
+            const status = document.getElementById('apiStatus');
+            let url = input.value.trim();
+            
+            if (!url) {
+                // 如果没有输入，使用自动检测的地址
+                url = getBackendUrl();
+                input.value = url;
+            }
+            
+            // 确保 URL 格式正确
+            if (!url.startsWith('http')) {
+                url = 'http://' + url;
+                input.value = url;
+            }
+            
+            status.textContent = '🔄 测试连接中...';
+            status.style.color = 'rgba(255,255,255,0.6)';
+            
+            // 测试连接
+            fetch(`${url}/health`, { method: 'GET', timeout: 5000 })
+                .then(res => {
+                    if (res.ok) {
+                        status.textContent = '✅ 连接成功！';
+                        status.style.color = '#34c759';
+                        // 更新 API_URL
+                        API_URL = url;
+                        console.log('🔗 后端地址已更新:', API_URL);
+                    } else {
+                        status.textContent = '❌ 连接失败';
+                        status.style.color = '#ff3b30';
+                    }
+                })
+                .catch(e => {
+                    status.textContent = '❌ 连接失败: ' + e.message;
+                    status.style.color = '#ff3b30';
+                });
+        }
+
+        // 显示灵感库
+        function showInspirationGallery() {
+            document.getElementById('feedback').textContent = '💡 可以直接说"我想拍户外"、"帮我换个姿势"';
+        }
+
+        // ===== 智能语音识别 =====
+        // 本地意图识别（快速响应）
+        function recognizeIntent(text) {
+            const t = text.toLowerCase().trim();
+
+            // 拍照指令
+            if (t.includes('拍') && (t.includes('吧') || t.includes('照') || t === '拍' || t.includes('好了') || t.includes('就这个'))) {
+                return { action: 'capture', confidence: 0.9 };
+            }
+
+            // 换姿势指令
+            if ((t.includes('换') || t.includes('不') || t.includes('不好')) && (t.includes('姿势') || t.includes('换个') || t.includes('换一'))) {
+                return { action: 'change_pose', confidence: 0.8 };
+            }
+
+            // 调整指令
+            if ((t.includes('矮') || t.includes('低') || t.includes('蹲') || t.includes('高') || t.includes('抬')) && (t.includes('点') || t.includes('一点'))) {
+                return { action: 'adjust', text: t, confidence: 0.7 };
+            }
+
+            // 询问指令
+            if (t.includes('怎么样') || t.includes('好看') || t.includes('行吗')) {
+                return { action: 'ask', confidence: 0.6 };
+            }
+
+            // 其他对话
+            return { action: 'ai', text: text, confidence: 0.5 };
+        }
+
+        function initSmartRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.warn('⚠️ 浏览器不支持语音识别');
+                return null;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                isRecording = true;
+                console.log('🎤 智能监听已启动');
+            };
+
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                if (interimTranscript) {
+                    document.getElementById('feedback').textContent = `🎤 "${interimTranscript}"`;
+                }
+
+                if (finalTranscript) {
+                    handleUserVoice(finalTranscript);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error !== 'no-speech') {
+                    console.log('🎤 语音识别: %s', event.error);
+                }
+            };
+
+            recognition.onend = () => {
+                isRecording = false;
+                if (inspirationMode && recognition) {
+                    try {
+                        recognition.start();
+                    } catch (e) { }
+                }
+            };
+
+            return recognition;
+        }
+
+        // 快速响应用户语音
+        function handleUserVoice(voiceText) {
+            const cleanText = voiceText.trim();
+            if (!cleanText || cleanText === lastUserQuery) return;
+
+            lastUserQuery = cleanText;
+            console.log('🗣️ 用户说:', cleanText);
+
+            document.getElementById('feedback').textContent = `💭 "${cleanText}"`;
+
+            // 本地快速识别意图
+            const intent = recognizeIntent(cleanText);
+            console.log('🎯 意图:', intent.action);
+
+            switch (intent.action) {
+                case 'capture':
+                    // 立即拍照
+                    document.getElementById('feedback').textContent = '📸 好的，拍照！';
+                    speak('看镜头！');
+                    setTimeout(() => capture(), 500);
+                    break;
+
+                case 'change_pose':
+                    changeToRandomPose();
+                    break;
+
+                case 'adjust':
+                    document.getElementById('feedback').textContent = getAdjustmentTip(cleanText);
+                    speak(getAdjustmentTip(cleanText));
+                    break;
+
+                case 'ask':
+                    const answer = getQuickAnswer(cleanText);
+                    document.getElementById('feedback').textContent = answer;
+                    speak(answer);
+                    break;
+
+                case 'ai':
+                    processUserRequest(cleanText);
+                    break;
+            }
+        }
+
+        function getAdjustmentTip(text) {
+            const t = text.toLowerCase();
+            if (t.includes('矮') || t.includes('低') || t.includes('蹲')) return '好的，蹲一点';
+            if (t.includes('高') || t.includes('抬')) return '好的，抬高一点';
+            return '好的，调整一下';
+        }
+
+        function getQuickAnswer(text) {
+            const t = text.toLowerCase();
+            if (t.includes('怎么样')) return '挺好的，保持这个姿势！';
+            if (t.includes('好看')) return '不错不错！';
+            return '我觉得挺好看的！';
+        }
+
+        function changeToRandomPose() {
+            const poseKeys = Object.keys(poses);
+            const currentIndex = poseKeys.indexOf(currentPose);
+            let newIndex;
+            do {
+                newIndex = Math.floor(Math.random() * poseKeys.length);
+            } while (newIndex === currentIndex && poseKeys.length > 1);
+
+            currentPose = poseKeys[newIndex];
+            document.getElementById('poseDropdown').value = currentPose;
+
+            const tips = ['换个姿势试试', '来，换这个', '这个姿势不错'];
+            document.getElementById('feedback').textContent = tips[Math.floor(Math.random() * tips.length)];
+            speak(tips[Math.floor(Math.random() * tips.length)]);
+        }
+
+        // 处理用户请求
+        async function processUserRequest(userText) {
+            if (isAnalyzing) return;
+
+            isAnalyzing = true;
+            const startTime = Date.now();
+
+            // 显示 AI 分析中状态
+            const aiAnalyzing = document.getElementById('aiAnalyzing');
+            if (aiAnalyzing) {
+                aiAnalyzing.classList.add('active');
+            }
+
+            try {
+                const video = document.getElementById('video');
+                if (!video || video.videoWidth === 0) return;
+
+                // 捕获当前画面
+                const canvas = document.createElement('canvas');
+                canvas.width = 480;
+                canvas.height = 360;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, 480, 360);
+                const imageBase64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+
+                // 使用 MiniMax 进行分析
+                const response = await fetch(`${API_URL}/analyze_image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: imageBase64,
+                        image_format: 'jpeg',
+                        user_message: userText
+                    })
+                });
+
+                const elapsed = Date.now() - startTime;
+                console.log(`⏱️ MiniMax 响应时间: ${elapsed}ms`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                        handleAIConversation(result.data, userText);
+                    }
+                } else {
+                    console.error('AI 分析失败:', response.status);
+                    document.getElementById('feedback').textContent = '⚠️ AI 分析失败';
+                }
+            } catch (e) {
+                console.error('处理请求错误:', e);
+                document.getElementById('feedback').textContent = '⚠️ 网络问题，请重试';
+            } finally {
+                isAnalyzing = false;
+                // 隐藏 AI 分析中状态
+                if (aiAnalyzing) {
+                    aiAnalyzing.classList.remove('active');
+                }
+            }
+        }
+
+        // 处理 AI 对话响应
+        function handleAIConversation(data, userText) {
+            const feedback = document.getElementById('feedback');
+            const action = data.action || 'continue';
+
+            // 统一处理
+            if (data.recommended_pose_id && poses[data.recommended_pose_id]) {
+                currentPose = data.recommended_pose_id;
+                const dropdown = document.getElementById('poseDropdown');
+                if (dropdown) dropdown.value = currentPose;
+            }
+
+            // 根据 action 执行
+            switch (action) {
+                case 'capture':
+                    feedback.textContent = '📸 好的，拍照！';
+                    speak('看镜头，茄子！');
+                    setTimeout(() => capture(), 800);
+                    break;
+
+                case 'change_pose':
+                    feedback.textContent = data.voice_feedback || '🔄 换个姿势';
+                    speak(data.voice_feedback || '来，换个姿势');
+                    break;
+
+                case 'talk':
+                    feedback.textContent = data.voice_feedback || '💬';
+                    speak(data.voice_feedback);
+                    break;
+
+                case 'continue':
+                default:
+                    if (data.voice_feedback) {
+                        feedback.textContent = data.voice_feedback;
+                        speak(data.voice_feedback);
+                    }
+            }
+        }
+
+        // ===== 图片压缩优化配置 =====
+        const IMAGE_QUALITY_PRESETS = {
+            fast: { width: 320, height: 240, quality: 0.35, format: 'webp' },     // 快速模式：~10-15KB
+            normal: { width: 480, height: 360, quality: 0.45, format: 'webp' },   // 普通模式：~20-30KB
+            high: { width: 640, height: 480, quality: 0.55, format: 'webp' }      // 高质量：~40-50KB
+        };
+        let currentQualityPreset = 'normal';
+        let networkLatency = 0;
+
+        // 检测浏览器是否支持 WebP
+        const supportsWebP = (() => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1;
+            canvas.height = 1;
+            return canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+        })();
+
+        // ===== 语音识别配置 =====
+        let userVoiceInput = null;  // 存储用户语音输入
+
+        // 初始化语音识别
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.warn('⚠️ 浏览器不支持语音识别');
+                return null;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN';
+            recognition.continuous = false;
+            recognition.interimResults = true;
+
+            recognition.onstart = () => {
+                isRecording = true;
+                document.getElementById('micBtn').classList.add('recording');
+                document.getElementById('micBtn').textContent = '🔴';
+                document.getElementById('feedback').textContent = '🎤 正在听您说话...';
+                console.log('🎤 开始语音识别');
+            };
+
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // 显示临时结果
+                if (interimTranscript) {
+                    document.getElementById('feedback').textContent = `🎤 "${interimTranscript}"`;
+                }
+
+                // 最终结果
+                if (finalTranscript) {
+                    userVoiceInput = finalTranscript;
+                    console.log('🗣️ 语音识别结果:', finalTranscript);
+                    document.getElementById('feedback').textContent = `🗣️ 您说: "${finalTranscript}"`;
+
+                    // 直接发送给 AI，让 AI 理解用户意图
+                    setTimeout(() => {
+                        analyzeWithVoice(finalTranscript);
+                    }, 500);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('❌ 语音识别错误:', event.error);
+                document.getElementById('feedback').textContent = `⚠️ 语音识别失败: ${event.error}`;
+                stopRecording();
+            };
+
+            recognition.onend = () => {
+                stopRecording();
+            };
+
+            return recognition;
+        }
+
+        // 安静模式切换（AI 不主动引导，只回应用户）
+        function toggleMicrophone() {
+            quietMode = !quietMode;
+            const micIcon = document.getElementById('micIcon');
+            const micText = document.getElementById('micText');
+
+            if (quietMode) {
+                if (micIcon) micIcon.textContent = '🔇';
+                if (micText) micText.textContent = '安静模式';
+                document.getElementById('feedback').textContent = '🔇 安静模式 - 我会保持安静，等你叫我';
+                console.log('🔇 安静模式开启');
+            } else {
+                if (micIcon) micIcon.textContent = '🎤';
+                if (micText) micText.textContent = '语音模式';
+                document.getElementById('feedback').textContent = '🎤 正常模式 - 我会适时给你建议';
+                console.log('🎤 安静模式关闭');
+            }
+        }
+
+        // ===== 语音识别控制 =====
+        function startRecording() {
+            if (recognition && !isRecording) {
+                try {
+                    recognition.start();
+                } catch (e) { }
+            }
+        }
+
+        function stopRecording() {
+            if (recognition && isRecording) {
+                try {
+                    recognition.stop();
+                } catch (e) { }
+            }
+        }
+
+        // ===== VAD 语音活动检测变量 =====
+        let vadEnabled = false;
+        let vadInterval = null;
+        let isUserSpeaking = false;
+        let audioContext = null;
+        let analyser = null;
+        let vadStream = null;
+        let speechStartTime = 0;
+        const VAD_SPEECH_THRESHOLD = 0.008;
+        const VAD_CHECK_INTERVAL = 30;
+        const SPEECH_DEBOUNCE_MS = 100;
+
+        // 统一触发拍照
+        function triggerCapture(mode = 'auto') {
+            console.log(`📸 触发拍照 - 模式: ${mode}`);
+
+            const feedback = document.getElementById('feedback');
+            const originalText = feedback.textContent;
+            feedback.textContent = '📸 正在拍摄...';
+
+            capture();
+
+            setTimeout(() => {
+                feedback.textContent = originalText;
+            }, 2000);
+        }
+
+        // ===== 语音活动检测 (VAD) - 实现打断机制 =====
+
+        // 初始化 VAD（语音活动检测）
+        async function initVAD() {
+            if (vadEnabled) return true;
+
+            // 检查浏览器是否支持 AudioContext
+            if (!window.AudioContext && !window.webkitAudioContext) {
+                console.warn('⚠️ 浏览器不支持 AudioContext');
+                return false;
+            }
+
+            try {
+                // 请求麦克风权限用于 VAD
+                vadStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // 创建音频上下文
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(vadStream);
+
+                // 创建分析器
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                analyser.smoothingTimeConstant = 0.8;
+                source.connect(analyser);
+
+                vadEnabled = true;
+                console.log('✅ VAD 语音活动检测已启动');
+
+                // 启动 VAD 检测循环
+                startVADLoop();
+
+                return true;
+            } catch (e) {
+                console.warn('⚠️ VAD 初始化失败:', e);
+                return false;
+            }
+        }
+
+        // 启动 VAD 检测循环
+        function startVADLoop() {
+            if (vadInterval) clearInterval(vadInterval);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            vadInterval = setInterval(() => {
+                if (!vadEnabled) return;
+
+                analyser.getByteFrequencyData(dataArray);
+
+                // 计算最大音量（比平均值更敏感）
+                let maxVolume = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    if (dataArray[i] > maxVolume) {
+                        maxVolume = dataArray[i];
+                    }
+                }
+
+                // 归一化 0-1
+                const normalizedVolume = maxVolume / 255;
+
+                // 使用最大音量检测，更灵敏
+                const isSpeechDetected = normalizedVolume > VAD_SPEECH_THRESHOLD;
+
+                // 状态变化处理
+                if (isSpeechDetected && !isUserSpeaking) {
+                    // 用户开始说话
+                    isUserSpeaking = true;
+                    speechStartTime = Date.now();
+                    onUserSpeechStart();
+                } else if (!isSpeechDetected && isUserSpeaking) {
+                    // 用户停止说话（去抖动）
+                    if (Date.now() - speechStartTime > SPEECH_DEBOUNCE_MS) {
+                        isUserSpeaking = false;
+                        onUserSpeechEnd();
+                    }
+                }
+            }, VAD_CHECK_INTERVAL);
+        }
+
+        // 用户开始说话时的处理
+        function onUserSpeechStart() {
+            console.log('👤 用户开始说话 - 打断 AI');
+
+            // 更新 VAD 指示器
+            updateVADIndicator(true);
+
+            // 1. 立即停止 TTS 播放
+            stopTTS();
+            ttsInterrupted = true;
+
+            // 2. 如果正在进行语音识别，重启它
+            if (isRecording && recognition) {
+                try {
+                    recognition.stop();
+                } catch (e) { }
+            }
+
+            // 3. 更新 UI 反馈
+            showInterruptFeedback();
+
+            // 4. 自动开始语音识别
+            setTimeout(() => {
+                if (!isRecording) {
+                    startRecording();
+                }
+            }, 300);
+        }
+
+        // 用户停止说话时的处理
+        function onUserSpeechEnd() {
+            console.log('👤 用户停止说话');
+            updateVADIndicator(false);
+        }
+
+        // 显示打断反馈
+        function showInterruptFeedback() {
+            // 显示打断提示 toast
+            const toast = document.getElementById('interruptToast');
+            toast.classList.add('show');
+
+            // 1.5秒后隐藏
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 1500);
+
+            // 更新反馈区域
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = '👤 正在倾听...';
+
+            ttsInterrupted = false;
+        }
+
+        // 更新 VAD 指示器状态
+        function updateVADIndicator(isActive) {
+            const indicator = document.getElementById('vadIndicator');
+            if (isActive) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        }
+
+        // 启用打断模式
+        async function enableInterruptMode() {
+            const success = await initVAD();
+            if (success) {
+                console.log('🔊 打断模式已启用');
+            }
+            return success;
+        }
+
+        // 禁用 VAD
+        function disableVAD() {
+            vadEnabled = false;
+
+            if (vadInterval) {
+                clearInterval(vadInterval);
+                vadInterval = null;
+            }
+
+            if (vadStream) {
+                vadStream.getTracks().forEach(track => track.stop());
+                vadStream = null;
+            }
+
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+
+            isUserSpeaking = false;
+            console.log('🔇 打断模式已禁用');
+        }
+
+        // 带语音输入的 AI 分析
+        async function analyzeWithVoice(voiceText) {
+            if (isAnalyzing) return;
+
+            const video = document.getElementById('video');
+            if (!video || video.videoWidth === 0) return;
+
+            isAnalyzing = true;
+            const startTime = Date.now();
+
+            try {
+                const imageResult = captureOptimizedFrame(video, currentQualityPreset);
+
+                document.getElementById('feedback').textContent = `🤖 AI 正在处理: "${voiceText}"...`;
+
+                const response = await fetch(`${API_URL}/analyze_image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: imageResult.base64,
+                        image_format: imageResult.format,
+                        user_message: voiceText  // 传递语音输入
+                    })
+                });
+
+                const responseTime = Date.now() - startTime;
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log(`✅ AI 语音响应 (${responseTime}ms):`, result);
+
+                    if (result.success && result.data) {
+                        handleAIConversation(result.data, voiceText);
+                    } else if (result.error) {
+                        document.getElementById('feedback').textContent = `⚠️ ${result.error}`;
+                    }
+                } else {
+                    document.getElementById('feedback').textContent = `⚠️ API 错误`;
+                }
+            } catch (e) {
+                console.error('AI 语音分析错误:', e);
+                document.getElementById('feedback').textContent = '⚠️ 无法连接后端';
+            } finally {
+                isAnalyzing = false;
+                userVoiceInput = null;
+            }
+        }
+
+        // 初始化
+        async function init() {
+            // 加载姿势数据（非阻塞）
+            fetch('../poses.json')
+                .then(res => res.json())
+                .then(data => {
+                    poses = data.poses && typeof data.poses === 'object' ? data.poses : data;
+                    console.log('已加载姿势数据:', Object.keys(poses));
+                })
+                .catch(e => console.warn('无法加载姿势数据:', e));
+
+            // 启动摄像头（非阻塞）
+            const video = document.getElementById('video');
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.play();
+                })
+                .catch(e => {
+                    console.error('摄像头启动失败:', e);
+                    document.getElementById('feedback').textContent = '⚠️ 请允许摄像头权限';
+                });
+
+            // 立即隐藏加载界面
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('feedback').textContent = '点击 ✨ 开启智能拍照';
+
+            // 后台初始化
+            initSmartRecognition();
+            checkAIStatus();
+            measureNetworkLatency();
+            console.log('📷 准备就绪');
+        }
+
+        // 测量网络延迟，自动选择最佳图片质量（带超时）
+        async function measureNetworkLatency() {
+            const start = Date.now();
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 3000);
+
+                await fetch(`${API_URL}/health`, {
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                networkLatency = Date.now() - start;
+                if (networkLatency > 500) {
+                    currentQualityPreset = 'fast';
+                } else if (networkLatency > 200) {
+                    currentQualityPreset = 'normal';
+                } else {
+                    currentQualityPreset = 'high';
+                }
+                console.log(`🌐 网络延迟: ${networkLatency}ms, 使用质量: ${currentQualityPreset}`);
+            } catch (e) {
+                networkLatency = 1000;
+                currentQualityPreset = 'fast';
+                console.warn('⚠️ 后端连接失败，使用快速模式');
+            }
+        }
+
+        // 检查 AI 服务状态（带超时）
+        async function checkAIStatus() {
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 3000);
+
+                const mcpResponse = await fetch(`${API_URL}/mcp/info`, { signal: controller.signal });
+                clearTimeout(timeout);
+
+                if (mcpResponse.ok) {
+                    const mcpData = await mcpResponse.json();
+                    const mcpIndicator = document.getElementById('mcpIndicator');
+                    if (mcpData.enabled) {
+                        mcpIndicator.classList.add('active');
+                    }
+                }
+            } catch (e) {
+                console.log('ℹ️ AI 状态检查完成');
+            }
+        }
+
+        // 检查环境变量
+        async function checkEnvKey(envKey) {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.providers?.[envKey.replace('_API_KEY', '')]?.configured;
+                }
+            } catch (e) { }
+            return false;
+        }
+
+        // 智能图片压缩 - 使用 WebP 格式
+        function captureOptimizedFrame(video, presetName = 'normal') {
+            const preset = IMAGE_QUALITY_PRESETS[presetName] || IMAGE_QUALITY_PRESETS.normal;
+            const canvas = document.createElement('canvas');
+            canvas.width = preset.width;
+            canvas.height = preset.height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, preset.width, preset.height);
+
+            // 优先使用 WebP（更小），降级到 JPEG
+            const format = supportsWebP ? 'image/webp' : 'image/jpeg';
+            const imageData = canvas.toDataURL(format, preset.quality);
+
+            // 记录压缩信息
+            const base64Data = imageData.split(',')[1];
+            const sizeKB = (base64Data.length * 0.75 / 1024).toFixed(1);
+            console.log(`📸 图片压缩: ${preset.width}x${preset.height}, 质量${preset.quality}, 格式${format.split('/')[1]}, 大小~${sizeKB}KB`);
+
+            return {
+                base64: base64Data,
+                format: supportsWebP ? 'webp' : 'jpeg',
+                size: parseFloat(sizeKB)
+            };
+        }
+
+        // 渲染循环
+        function renderLoop() {
+            const canvas = document.getElementById('canvas');
+            const video = document.getElementById('video');
+            const ctx = canvas.getContext('2d');
+
+            if (video.readyState >= 2) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                // 镜像显示
+                ctx.save();
+                ctx.scale(-1, 1);
+                ctx.translate(-canvas.width, 0);
+
+                // 1. 绘制视频背景
+                ctx.drawImage(video, 0, 0);
+
+                ctx.restore();
+            }
+
+            // 智能拍照模式下持续分析
+            if (inspirationMode && !isAnalyzing) {
+                const now = Date.now();
+
+                // 用户说话后立即分析当前画面
+                if (lastUserQuery) {
+                    realtimeAnalysis(lastUserQuery);
+                    lastUserQuery = '';
+                } else if (now - lastAnalysisTime > ANALYSIS_INTERVAL) {
+                    // 定时分析当前画面（不发送用户消息）
+                    analyzeCurrentFrame();
+                }
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        // 用户说话时触发实时分析
+        async function realtimeAnalysis(userText) {
+            if (isAnalyzing) return;
+
+            isAnalyzing = true;
+            lastAnalysisTime = Date.now();
+
+            try {
+                const video = document.getElementById('video');
+                if (!video || video.videoWidth === 0) return;
+
+                // 捕获当前画面
+                const imageResult = captureOptimizedFrame(video, 'fast');
+                document.getElementById('feedback').textContent = `💭 "${userText}"`;
+
+                const response = await fetch(`${API_URL}/analyze_image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: imageResult.base64,
+                        image_format: imageResult.format,
+                        user_message: userText
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                        handleAIConversation(result.data, userText);
+                    }
+                }
+            } catch (e) {
+                console.error('实时分析错误:', e);
+            } finally {
+                isAnalyzing = false;
+            }
+        }
+
+        // 定时分析当前画面（无用户输入）
+        async function analyzeCurrentFrame() {
+            if (isAnalyzing) return;
+
+            isAnalyzing = true;
+            lastAnalysisTime = Date.now();
+
+            try {
+                const video = document.getElementById('video');
+                if (!video || video.videoWidth === 0) return;
+
+                const imageResult = captureOptimizedFrame(video, 'fast');
+
+                const response = await fetch(`${API_URL}/analyze_image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: imageResult.base64,
+                        image_format: imageResult.format
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                        // 定时分析只更新姿势，不播报语音
+                        if (result.data.recommended_pose_id &&
+                            poses[result.data.recommended_pose_id] &&
+                            currentPose !== result.data.recommended_pose_id) {
+                            currentPose = result.data.recommended_pose_id;
+                            const dropdown = document.getElementById('poseDropdown');
+                            if (dropdown) dropdown.value = currentPose;
+                        }
+                    }
+                }
+            } catch (e) {
+                // 静默失败
+            } finally {
+                isAnalyzing = false;
+            }
+        }
+
+        requestAnimationFrame(renderLoop);
+
+        // 绘制 AI 状态
+        function drawAIStatus(ctx) {
+            // Polyfill for roundRect if not natively supported
+            if (!CanvasRenderingContext2D.prototype.roundRect) {
+                CanvasRenderingContext2D.prototype.roundRect = function (x, y, width, height, radius) {
+                    if (typeof radius === 'number') {
+                        radius = { tl: radius, tr: radius, br: radius, bl: radius };
+                    } else if (typeof radius === 'object') {
+                        radius = {
+                            tl: radius.tl || 0,
+                            tr: radius.tr || 0,
+                            br: radius.br || 0,
+                            bl: radius.bl || 0
+                        };
+                    } else {
+                        radius = { tl: 0, tr: 0, br: 0, bl: 0 };
+                    }
+                    this.beginPath();
+                    this.moveTo(x + radius.tl, y);
+                    this.lineTo(x + width - radius.tr, y);
+                    this.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+                    this.lineTo(x + width, y + height - radius.br);
+                    this.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+                    this.lineTo(x + radius.bl, y + height);
+                    this.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+                    this.lineTo(x, y + radius.tl);
+                    this.quadraticCurveTo(x, y, x + radius.tl, y);
+                    this.closePath();
+                    return this;
+                };
+            }
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.roundRect(5, 5, 200, 60, 10);
+            ctx.fill();
+
+            ctx.fillStyle = '#00ff78';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`📷 场景: ${currentPose.split('_')[0]}`, 15, 30);
+
+            if (isAnalyzing) {
+                ctx.fillStyle = '#667eea';
+                ctx.fillText('🤖 AI 思考中...', 15, 55);
+            } else {
+                ctx.fillStyle = '#fff';
+                ctx.fillText('✅ 实时监控中', 15, 55);
+            }
+        }
+
+        // 处理检测结果
+        function onResults(results) {
+            const canvas = document.getElementById('canvas');
+            const video = document.getElementById('video');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.translate(-canvas.width, 0);
+
+            // 获取当前场景类型
+            const currentSceneType = getSceneType(currentPose);
+
+            // 绘制引导框（所有场景都显示）
+            if (isGuiding && document.getElementById('showGuide').checked) {
+                drawGuide(ctx, canvas.width, canvas.height);
+            }
+
+            // 智能判断是否显示骨骼
+            // 自拍、情侣、美食场景不显示完整骨骼，避免遮挡脸部
+            const showFullSkeleton = !['selfie', 'couple', 'food'].includes(currentSceneType);
+
+            if (results.poseLandmarks && document.getElementById('showSkeleton').checked) {
+                if (showFullSkeleton) {
+                    // 全身骨骼（他拍、合影、户外等）
+                    drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS,
+                        { color: 'rgba(255,255,255,0.6)', lineWidth: 2 });
+                    drawLandmarks(ctx, results.poseLandmarks,
+                        { color: 'rgba(255,255,255,0.8)', lineWidth: 1, radius: 4 });
+                } else {
+                    // 简化骨骼：只显示肩膀和手臂轮廓（自拍模式）
+                    const simplifiedConnections = [
+                        [11, 12], [11, 13], [13, 15], [12, 14], [14, 16]
+                    ];
+                    simplifiedConnections.forEach(([i, j]) => {
+                        if (results.poseLandmarks[i] && results.poseLandmarks[j]) {
+                            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.moveTo(results.poseLandmarks[i].x * canvas.width,
+                                results.poseLandmarks[i].y * canvas.height);
+                            ctx.lineTo(results.poseLandmarks[j].x * canvas.width,
+                                results.poseLandmarks[j].y * canvas.height);
+                            ctx.stroke();
+                        }
+                    });
+                }
+            }
+
+            ctx.restore();
+
+            // 计算匹配度
+            if (isGuiding && results.poseLandmarks) {
+                calcScore(results.poseLandmarks);
+            }
+        }
+
+        // 根据姿势ID判断场景类型
+        function getSceneType(poseId) {
+            const p = poses[poseId];
+            if (p && p.scene) return p.scene;
+
+            // 根据姿势名称推断场景
+            if (poseId.startsWith('selfie')) return 'selfie';
+            if (poseId.startsWith('couple')) return 'couple';
+            if (poseId.startsWith('group')) return 'group_small';
+            if (poseId.includes('food') || poseId.includes('coffee') || poseId.includes('chin')) return 'food';
+            if (poseId.includes('walking') || poseId.includes('looking') || poseId.includes('spread')) return 'outdoor';
+
+            return 'portrait'; // 默认他拍模式
+        }
+
+        // 绘制引导框
+        function drawGuide(ctx, w, h) {
+            const p = poses[currentPose];
+
+            // 调试信息：始终显示当前状态
+            ctx.fillStyle = 'rgba(0, 255, 120, 0.9)';
+            ctx.font = 'bold 18px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`当前姿势: ${currentPose}`, 10, 30);
+            ctx.fillText(`姿势存在: ${p ? '✓' : '✗'}`, 10, 55);
+            ctx.fillText(`有landmarks: ${(p && p.landmarks) ? '✓ (' + p.landmarks.length + '点)' : '✗'}`, 10, 80);
+
+            if (!p || !p.landmarks) {
+                ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
+                ctx.fillText('⚠️ 无法绘制引导线', 10, 105);
+                console.warn('drawGuide: 姿势未找到', currentPose, 'poses keys:', Object.keys(poses).slice(0, 5));
+                return;
+            }
+
+            const lm = p.landmarks;
+            const time = Date.now() / 1000;
+            const pulse = 0.5 + 0.5 * Math.sin(time * 3);
+
+            // 显示姿势名称
+            if (p.name) {
+                ctx.fillStyle = 'rgba(0, 255, 120, 0.9)';
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`📷 ${p.name}`, w / 2, h - 30);
+            }
+
+            // 外发光效果
+            ctx.shadowColor = 'rgba(0, 255, 120, 0.8)';
+            ctx.shadowBlur = 15 + pulse * 10;
+
+            // 绘制连接线
+            ctx.strokeStyle = `rgba(0, 255, 120, ${0.7 + pulse * 0.3})`;
+            ctx.lineWidth = 8;
+            ctx.setLineDash([25, 15]);
+            ctx.lineCap = 'round';
+
+            const connections = [
+                [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+                [11, 23], [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28]
+            ];
+
+            connections.forEach(([i, j]) => {
+                if (lm[i] && lm[j]) {
+                    ctx.beginPath();
+                    ctx.moveTo(lm[i][0] * w, lm[i][1] * h);
+                    ctx.lineTo(lm[j][0] * w, lm[j][1] * h);
+                    ctx.stroke();
+                }
+            });
+
+            ctx.setLineDash([]);
+            ctx.shadowBlur = 0;
+
+            // 绘制关键点
+            const keyPoints = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+            keyPoints.forEach(i => {
+                if (lm[i]) {
+                    const x = lm[i][0] * w;
+                    const y = lm[i][1] * h;
+
+                    // 脉冲外环
+                    ctx.strokeStyle = `rgba(0, 255, 120, ${0.4 + pulse * 0.3})`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 20 + pulse * 10, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // 实心圆
+                    ctx.fillStyle = 'rgba(0, 255, 120, 0.9)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 12, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // 显示点编号（调试用）
+                    ctx.fillStyle = '#000';
+                    ctx.font = 'bold 10px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(i, x, y + 4);
+                }
+            });
+        }
+
+        // 计算匹配度
+        function calcScore(userLm) {
+            const p = poses[currentPose];
+            if (!p || !p.landmarks) {
+                console.warn('姿势数据未找到:', currentPose, '可用姿势:', Object.keys(poses));
+                score = 0;
+                updateUI();
+                return;
+            }
+
+            const tLm = p.landmarks;
+            let sum = 0, cnt = 0;
+
+            // 计算手臂向量的余弦相似度
+            [[11, 13], [13, 15], [12, 14], [14, 16]].forEach(([s, e]) => {
+                if (!userLm[s] || !userLm[e] || !tLm[s] || !tLm[e]) return;
+
+                const uv = { x: userLm[e].x - userLm[s].x, y: userLm[e].y - userLm[s].y };
+                const tv = { x: tLm[e][0] - tLm[s][0], y: tLm[e][1] - tLm[s][1] };
+                const dot = uv.x * tv.x + uv.y * tv.y;
+                const m1 = Math.sqrt(uv.x * uv.x + uv.y * uv.y);
+                const m2 = Math.sqrt(tv.x * tv.x + tv.y * tv.y);
+                if (m1 > 0.001 && m2 > 0.001) {
+                    sum += dot / (m1 * m2);
+                    cnt++;
+                }
+            });
+
+            if (cnt > 0) {
+                score = Math.max(0, Math.min(100, ((sum / cnt + 1) / 2) * 100));
+            } else {
+                score = 50; // 默认中间值
+            }
+
+            updateUI();
+            checkAuto();
+        }
+
+        // 更新界面
+        function updateUI() {
+            const card = document.getElementById('scoreCard');
+            const val = document.getElementById('scoreValue');
+            const fb = document.getElementById('feedback');
+
+            val.textContent = Math.round(score) + '%';
+            card.className = 'score-card ' + (score >= 70 ? 'high' : score >= 50 ? 'medium' : 'low');
+
+            if (score >= 85) fb.textContent = '完美！保持住！';
+            else if (score >= 70) fb.textContent = '很好！再调整一点';
+            else if (score >= 50) fb.textContent = '继续调整...';
+            else fb.textContent = '移动到绿色引导框';
+        }
+
+        // 自动拍照检测
+        function checkAuto() {
+            const threshold = parseInt(document.getElementById('threshold').value);
+            if (score >= threshold) {
+                if (!highScoreTime) highScoreTime = Date.now();
+                else if (Date.now() - highScoreTime >= 2000) countdown();
+            } else {
+                highScoreTime = null;
+            }
+        }
+
+        // 倒计时
+        async function countdown() {
+            highScoreTime = null;
+            const el = document.getElementById('countdown');
+
+            for (let i = 3; i >= 1; i--) {
+                el.textContent = i;
+                el.style.display = 'block';
+                el.style.animation = 'none';
+                el.offsetHeight;
+                el.style.animation = 'pop 0.4s ease-out';
+                if (voiceOn) speak(String(i));
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            el.style.display = 'none';
+            capture();
+        }
+
+        // 拍照
+        function capture() {
+            const video = document.getElementById('video');
+            const c = document.createElement('canvas');
+            c.width = video.videoWidth;
+            c.height = video.videoHeight;
+            const ctx = c.getContext('2d');
+            ctx.scale(-1, 1);
+            ctx.translate(-c.width, 0);
+            ctx.drawImage(video, 0, 0);
+
+            const url = c.toDataURL('image/jpeg', 0.9);
+
+            const previewImg = document.getElementById('previewImg');
+            if (previewImg) {
+                previewImg.src = url;
+                previewImg.style.display = 'block';
+            }
+
+            const perfect = document.getElementById('perfectBadge');
+            if (perfect) {
+                perfect.style.display = 'block';
+                perfect.classList.add('pop-in');
+                setTimeout(() => perfect.classList.remove('pop-in'), 300);
+            }
+
+            if (voiceOn) speak('拍摄成功！');
+
+            setTimeout(() => {
+                if (perfect) perfect.style.display = 'none';
+            }, 2000);
+        }
+
+        // 切换前后摄像头
+        let currentFacingMode = 'user';
+        async function switchCamera() {
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+
+            const video = document.getElementById('video');
+            if (video && video.srcObject) {
+                const tracks = video.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: currentFacingMode, width: 640, height: 480 }
+                });
+                video.srcObject = stream;
+                await video.play();
+                console.log('📷 切换摄像头:', currentFacingMode);
+            } catch (e) {
+                console.error('切换摄像头失败:', e);
+                speak('无法切换摄像头');
+            }
+        }
+
+        // 显示相册 (模拟)
+        function showGallery() {
+            const previewImg = document.getElementById('previewImg');
+            if (previewImg && previewImg.src) {
+                // 如果有照片，全屏显示（此处简化逻辑）
+                alert('相册功能开发中... \n(此处应展示相册页面)');
+            } else {
+                speak('相册是空的');
+            }
+        }
+
+        // 开始引导 (简化版，仅开启 AI)
+        function startGuide() {
+            if (!inspirationMode) toggleInspirationMode();
+        }
+
+        // ===== 智能变焦控制 =====
+        let currentZoom = 1.0;
+        let zoomMode = 'unknown'; // 'hardware' | 'css' | 'unknown'
+        let videoStream = null; // 保存摄像头 stream 引用
+
+        /**
+         * 检测设备是否支持硬件变焦
+         */
+        async function detectZoomCapability() {
+            try {
+                const video = document.getElementById('video');
+                const stream = video.srcObject;
+
+                if (!stream) {
+                    console.warn('⚠️ 无法获取视频流');
+                    return false;
+                }
+
+                videoStream = stream;
+                const videoTrack = stream.getVideoTracks()[0];
+
+                if (!videoTrack) {
+                    console.warn('⚠️ 无法获取视频轨道');
+                    return false;
+                }
+
+                const capabilities = videoTrack.getCapabilities();
+
+                if (capabilities && capabilities.zoom) {
+                    console.log('✅ 硬件变焦支持:', capabilities.zoom);
+                    zoomMode = 'hardware';
+                    return true;
+                } else {
+                    console.log('ℹ️ 设备不支持硬件变焦，使用 CSS 变焦');
+                    zoomMode = 'css';
+                    return false;
+                }
+            } catch (e) {
+                console.warn('⚠️ 变焦能力检测失败:', e);
+                zoomMode = 'css';
+                return false;
+            }
+        }
+
+        async function setZoom(factor, btn) {
+            currentZoom = factor;
+
+            // 更新按钮状态
+            if (btn) {
+                document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+
+            const video = document.getElementById('video');
+            if (!video) return;
+
+            // 如果还未检测变焦能力，先检测
+            if (zoomMode === 'unknown') {
+                await detectZoomCapability();
+            }
+
+            // 尝试使用硬件变焦
+            if (zoomMode === 'hardware' && videoStream) {
+                try {
+                    const videoTrack = videoStream.getVideoTracks()[0];
+                    const capabilities = videoTrack.getCapabilities();
+
+                    const minZoom = capabilities.zoom?.min || 1.0;
+                    const maxZoom = capabilities.zoom?.max || 3.0;
+                    const targetZoom = Math.min(Math.max(factor, minZoom), maxZoom);
+
+                    await videoTrack.applyConstraints({
+                        advanced: [{ zoom: targetZoom }]
+                    });
+
+                    console.log(`🔍 硬件变焦: ${targetZoom}x`);
+                    video.style.transform = 'scaleX(-1)';
+
+                    if (typeof voiceOn !== 'undefined' && voiceOn) {
+                        speak(`已放大${factor}倍`);
+                    }
+                    return;
+
+                } catch (e) {
+                    console.warn('⚠️ 硬件变焦失败，回退到 CSS:', e);
+                    zoomMode = 'css';
+                }
+            }
+
+            // CSS 变焦（回退方案）
+            console.log(`🔍 CSS 变焦: ${factor}x`);
+            video.style.transform = `scale(${currentZoom}) scaleX(-1)`;
+            video.style.transformOrigin = 'center center';
+
+            if (typeof voiceOn !== 'undefined' && voiceOn) speak(`放大${factor}倍`);
+        }
+
+        // 获取变焦信息（调试用）
+        function getZoomInfo() {
+            return { mode: zoomMode, currentZoom, hardwareSupported: zoomMode === 'hardware' };
+        }
+
+        // 切换姿势
+        function changePose(id) {
+            currentPose = id;
+            const p = poses[id];
+            const name = p ? p.name : id;
+
+            // 更新下拉框选中状态
+            const dropdown = document.getElementById('poseDropdown');
+            if (dropdown) dropdown.value = id;
+
+            // 重置分数
+            score = 0;
+            highScoreTime = null;
+
+            if (voiceOn) speak(`已切换到${name}`);
+            console.log('切换姿势:', id);
+        }
+
+        // 切换语音
+        function toggleVoice() {
+            voiceOn = !voiceOn;
+            speak(voiceOn ? '语音已开启' : '语音已关闭');
+        }
+
+        // ===== 浏览器免费 TTS（Web Speech API）=====
+        let webSpeechUtterance = null;  // 当前语音对象
+
+        // 使用阶跃星辰 TTS 播放语音
+        let audioCache = new Map();
+        let currentAudio = null;
+        let ttsPending = null;  // 待播放的任务
+
+        // 使用浏览器 TTS（快速响应）
+        function speak(text) {
+            if (!voiceOn || !text) return;
+
+            const cleanText = text.trim();
+            if (!cleanText) return;
+
+            // 停止当前播放
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'zh-CN';
+            utterance.rate = 0.95;
+            utterance.pitch = 1.0;
+
+            // 选择中文语音
+            const voices = window.speechSynthesis.getVoices();
+            const zhVoice = voices.find(v => v.lang.includes('zh')) || voices[0];
+            if (zhVoice) utterance.voice = zhVoice;
+
+            window.speechSynthesis.speak(utterance);
+            console.log('🔊 TTS: "%s"', cleanText.substring(0, 20));
+        }
+
+        // 播放音频
+        let audioUnlocked = false;
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            const silent = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+            silent.play().then(() => {
+                audioUnlocked = true;
+                console.log('🔊 音频已解锁');
+            }).catch(e => console.warn('音频解锁失败:', e));
+        }
+
+        function playAudioFromBase64(base64Data) {
+            unlockAudio(); // 尝试解锁
+
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+
+            const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
+            currentAudio = audio;
+
+            audio.onended = () => currentAudio = null;
+            audio.onerror = () => {
+                currentAudio = null;
+                console.warn('播放失败，尝试浏览器原声...');
+                // 如果后端播放失败，回退到浏览器 TTS
+                speakWithWebSpeech(ttsPending || '播放失败');
+            };
+
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.warn('播放被浏览器拦截:', e);
+                    // 如果被拦截，引导用户点击或回退
+                    speakWithWebSpeech(ttsPending || '语音已就绪');
+                });
+            }
+        }
+
+        // 浏览器内置 TTS 回退
+        function speakWithWebSpeech(text) {
+            if (!voiceOn || !text) return;
+            try {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                utterance.rate = 1.0;
+                window.speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.error('Web Speech Error:', e);
+            }
+        }
+
+        // 停止 TTS
+        function stopTTS() {
+            ttsPending = null;
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+            console.log('🛑 TTS 已停止');
+        }
+
+        // ===== AI 智能分析 =====
+
+        // 避免重复播报相同内容
+        let lastSpokenText = '';
+
+        // 添加 AI 分析按钮功能
+        function triggerAIAnalysis() {
+            lastAnalysisTime = 0;  // 重置时间，立即分析
+            analyzeCurrentFrame();
+        }
+
+        window.onload = function () {
+            try {
+                init();
+            } catch (e) {
+                console.error('Init error:', e);
+            }
+        };
+
+        // 备用方案：5秒后强制隐藏 loading
+        setTimeout(() => {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.style.display = 'none';
+            }
+            const feedback = document.getElementById('feedback');
+            if (feedback) {
+                feedback.textContent = '点击 ✨ 开启智能拍照';
+            }
+        }, 5000);
+    </script>
+</body>
+
+</html>

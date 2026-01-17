@@ -1,0 +1,21 @@
+# AI Photography Director - Python Dependencies
+
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+httpx>=0.25.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.6
+
+# 模块二：姿态匹配
+mediapipe>=0.10.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+
+# 模块三：Streamlit 前端
+streamlit>=1.29.0
+streamlit-webrtc>=0.47.0
+av>=11.0.0
+
+# 模块四：语音反馈 (可选)
+gTTS>=2.4.0

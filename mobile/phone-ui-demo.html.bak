@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Focal - 手机UI演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* 手机外框 */
+        .phone-container {
+            width: 390px;
+            height: 844px;
+            background: #1a1a1a;
+            border-radius: 50px;
+            padding: 12px;
+            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        /* 刘海 */
+        .phone-notch {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 30px;
+            background: #1a1a1a;
+            border-radius: 0 0 20px 20px;
+            z-index: 1000;
+        }
+
+        /* App内容区 */
+        .app {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            border-radius: 40px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 设置面板 */
+        .settings-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(20, 20, 20, 0.98);
+            backdrop-filter: blur(30px);
+            padding: 60px 20px 30px;
+            transform: translateY(-100%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .settings-panel.active {
+            transform: translateY(0);
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .settings-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .settings-item {
+            margin-bottom: 24px;
+        }
+
+        .settings-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .settings-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+        }
+
+        .toggle-text {
+            color: #fff;
+            font-size: 15px;
+        }
+
+        .toggle-switch {
+            width: 48px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 14px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: #34c759;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: left 0.3s ease;
+        }
+
+        .toggle-switch.active::after {
+            left: 22px;
+        }
+
+        /* 设置项按钮组 */
+        .settings-button-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .settings-btn {
+            flex: 1;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .settings-btn.active {
+            background: #ffd60a;
+            color: #000;
+        }
+
+        /* 风格库样式 */
+        .style-upload-area {
+            margin-top: 10px;
+        }
+
+        .style-thumbnails {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .style-thumb {
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+        }
+
+        .upload-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 24px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .upload-btn input {
+            display: none;
+        }
+
+        .style-status {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 5px;
+        }
+
+        .settings-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 顶部栏 */
+        .top-bar {
+            height: 7.5%;
+            min-height: 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+            position: relative;
+            z-index: 10;
+        }
+
+        /* AI图标（左上角） */
+        .ai-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 18px;
+        }
+
+        .ai-icon.active {
+            background: linear-gradient(135deg, #ffd60a 0%, #ff9500 100%);
+            transform: scale(1.1);
+        }
+
+        .ai-icon.is-listening {
+            animation: pulse-ring 2s infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 214, 10, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 214, 10, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 214, 10, 0);
+            }
+        }
+
+        /* 简约设置按钮（右上角） */
+        .settings-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .settings-icon:active {
+            transform: scale(0.85);
+            opacity: 0.6;
+        }
+
+        /* 姿势引导图层 */
+        .pose-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .pose-overlay.active {
+            opacity: 0.8;
+            animation: breathe 3s infinite ease-in-out;
+        }
+
+        .pose-path {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.8);
+            stroke-width: 2;
+            stroke-dasharray: 10 5;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
+        }
+
+        @keyframes breathe {
+
+            0%,
+            100% {
+                opacity: 0.6;
+            }
+
+            50% {
+                opacity: 0.9;
+            }
+        }
+
+        /* 变焦控制按钮 */
+        .zoom-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px;
+            border-radius: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        .zoom-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: transparent;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffd60a;
+            transform: scale(1.1);
+            font-weight: 800;
+        }
+
+        /* 取景器 - 占85% */
+        .viewfinder {
+            height: 85%;
+            position: relative;
+            background: #222;
+            margin: 0 10px;
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .feedback {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            padding: 14px 28px;
+            border-radius: 16px;
+            color: #fff;
+            font-size: 15px;
+            text-align: center;
+            white-space: nowrap;
+            max-width: calc(100% - 40px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .feedback.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 底部栏 */
+        .bottom-bar {
+            height: 7.5%;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+        }
+
+        .capture-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: #000;
+            border: 3px solid #fff;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        .capture-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            border: 4px solid #ffd60a;
+        }
+
+        .capture-btn:active {
+            transform: scale(0.9);
+        }
+
+        .capture-btn:active::before {
+            border-width: 5px;
+        }
+
+        .icon-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        /* 响应式：移动端直接全屏 */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                background: #000;
+            }
+
+            .phone-container {
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+
+            .phone-notch {
+                display: none;
+            }
+
+            .app {
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 手机外框 -->
+    <div class="phone-container">
+        <!-- 刘海 -->
+        <div class="phone-notch"></div>
+
+        <!-- App主体 -->
+        <div class="app">
+
+            <!-- 设置面板 -->
+            <div class="settings-panel" id="settingsPanel">
+                <div class="settings-header">
+                    <h2 class="settings-title">设置</h2>
+                    <button class="close-btn" onclick="toggleSettings()">✕</button>
+                </div>
+
+                <div class="settings-item">
+                    <label class="settings-label">语音反馈</label>
+                    <div class="settings-toggle">
+                        <span class="toggle-text">开启语音提示</span>
+                        <div class="toggle-switch active" onclick="toggleVoice(this)"></div>
+                    </div>
+                </div>
+
+                <div class="settings-item">
+                    <label class="settings-label">图像质量</label>
+                    <div class="settings-button-group">
+                        <button class="settings-btn" onclick="setQuality('1080P', this)">1080P</button>
+                        <button class="settings-btn active" onclick="setQuality('2K', this)">2K</button>
+                        <button class="settings-btn" onclick="setQuality('4K', this)">4K</button>
+                    </div>
+                </div>
+
+                <div class="settings-item">
+                    <label class="settings-label">个人风格库</label>
+                    <div class="style-upload-area">
+                        <div class="style-thumbnails" id="styleThumbnails">
+                            <!-- 上传按钮 -->
+                            <label class="upload-btn">
+                                <input type="file" id="styleUpload" multiple accept="image/*"
+                                    onchange="handleStyleUpload(this)">
+                                <span>+</span>
+                            </label>
+                            <!-- 缩略图将插入这里 -->
+                        </div>
+                        <div class="style-status" id="styleStatus">上传喜欢的照片，AI 将学习你的风格</div>
+                    </div>
+                </div>
+
+                <div class="settings-item">
+                    <label class="settings-label">关于</label>
+                    <div
+                        style="padding: 14px 16px; background: rgba(255,255,255,0.05); border-radius: 12px; color: rgba(255,255,255,0.6); font-size: 13px;">
+                        Focal v1.1<br>
+                        智能拍照 · 语音交互 · 风格学习
+                    </div>
+                </div>
+            </div>
+
+            <!-- 顶部栏 -->
+            <div class="top-bar">
+                <!-- AI图标（左上角） -->
+                <button class="ai-icon" id="aiIcon" onclick="toggleAI()">✨</button>
+
+                <!-- 设置按钮（右上角） -->
+                <button class="settings-icon" onclick="toggleSettings()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <circle cx="12" cy="5" r="1.5" />
+                        <circle cx="12" cy="12" r="1.5" />
+                        <circle cx="12" cy="19" r="1.5" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 取景器 -->
+            <div class="viewfinder">
+                <video id="video" autoplay playsinline></video>
+
+                <div id="poseOverlay" class="pose-overlay">
+                    <!-- SVG 将通过 JS 动态插入 -->
+                </div>
+
+
+
+                <div class="feedback" id="feedback">点击 ✨ 启动 focal</div>
+
+                <!-- 变焦控制 -->
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="setZoom(0.5, this)">0.5</button>
+                    <button class="zoom-btn active" onclick="setZoom(1.0, this)">1</button>
+                    <button class="zoom-btn" onclick="setZoom(1.25, this)">1.25</button>
+                    <button class="zoom-btn" onclick="setZoom(1.5, this)">1.5</button>
+                    <button class="zoom-btn" onclick="setZoom(2.0, this)">2</button>
+                </div>
+            </div>
+
+            <!-- 底部栏 -->
+            <div class="bottom-bar">
+                <button class="icon-btn">🖼️</button>
+                <button class="capture-btn" onclick="capture()"></button>
+                <button class="icon-btn" onclick="flipCamera()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 底部提示自动消失
+        (function () {
+            function hideFeedback() {
+                setTimeout(() => {
+                    const feedback = document.getElementById('feedback');
+                    if (feedback) {
+                        console.log('隐藏底部提示...');
+                        feedback.classList.add('fade-out');
+                    }
+                }, 1500);
+            }
+
+            // 确保在DOM加载完成后执行
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', hideFeedback);
+            } else {
+                hideFeedback();
+            }
+        })();
+
+        // 设置面板切换
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            panel.classList.toggle('active');
+        }
+
+        // 图像质量切换
+        function setQuality(quality, btn) {
+            // 更新按钮状态
+            document.querySelectorAll('.settings-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            console.log('图像质量已设置为:', quality);
+        }
+
+        // 风格照片上传与学习
+        async function handleStyleUpload(input) {
+            const files = input.files;
+            if (!files.length) return;
+
+            const thumbnailsContainer = document.getElementById('styleThumbnails');
+            const statusDiv = document.getElementById('styleStatus');
+            const uploadBtn = thumbnailsContainer.querySelector('.upload-btn');
+
+            statusDiv.textContent = '正在分析你的风格...';
+
+            const imagePromises = Array.from(files).map(file => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        // 创建缩略图
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'style-thumb';
+                        thumbnailsContainer.insertBefore(img, uploadBtn);
+
+                        // 返回 base64 (去掉前缀)
+                        resolve(e.target.result.split(',')[1]);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+
+            try {
+                const base64Images = await Promise.all(imagePromises);
+
+                // 调用后端学习风格
+                const response = await fetch(`${API_BASE}/learn_style`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ images: base64Images })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    statusDiv.textContent = `已学习风格: ${result.style_profile}`;
+                    statusDiv.style.color = '#ffd60a';
+                } else {
+                    statusDiv.textContent = '学习失败，请重试';
+                }
+            } catch (error) {
+                console.error('上传失败:', error);
+                statusDiv.textContent = '上传出错';
+            }
+        }
+
+        // 变焦控制（按钮）
+        let currentZoom = 1.0;
+
+        function setZoom(factor, btn) {
+            currentZoom = factor;
+
+            // 更新按钮状态
+            document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+
+            // 应用CSS缩放
+            const video = document.getElementById('video');
+            if (video) {
+                video.style.transform = `scale(${currentZoom}) scaleX(-1)`;
+                video.style.transformOrigin = 'center center';
+            }
+        }
+
+        // 翻转摄像头
+        let facingMode = 'user';
+        async function flipCamera() {
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            await startCamera();
+        }
+
+        // 启动摄像头
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: facingMode, width: 720, height: 1280 }
+                });
+                document.getElementById('video').srcObject = stream;
+            } catch (e) {
+                updateFeedback('⚠️ 请允许摄像头权限');
+            }
+        }
+
+        // ==================== Focal AI Agent 核心模块 ====================
+        // 流程: 唤醒感知 → 导演决策 → AR初始化 → 实时引导 → 完美拍摄
+
+        const API_BASE = 'http://localhost:8000';  // 后端 API 地址
+
+        // ==================== AR 姿势引导资源 ====================
+        const POSE_PATHS = {
+            // 自拍/耶
+            "selfie_smile": "M150,100 Q180,100 180,130 Q180,160 150,160 Q120,160 120,130 Q120,100 150,100 M150,160 L150,300 M150,200 L100,250 M150,200 L200,180 L220,140 M150,300 L120,450 M150,300 L180,450",
+
+            // 酷/插兜
+            "standing_cool": "M150,100 Q180,100 180,130 Q180,160 150,160 Q120,160 120,130 Q120,100 150,100 M150,160 L140,300 M140,200 L110,250 M140,200 L180,250 M140,300 L130,450 M140,300 L160,450",
+
+            // 通用
+            "default": "M150,80 Q190,80 190,120 Q190,160 150,160 Q110,160 110,120 Q110,80 150,80 M150,160 L150,300 M150,220 L90,260 M150,220 L210,260 M150,300 L110,480 M150,300 L190,480"
+        };
+
+
+        // ==================== A. 唤醒与感知 (Wake & Sense) ====================
+
+        const FocalAgent = {
+            isActive: false,           // Agent 是否激活
+            isAnalyzing: false,        // 是否正在分析
+            analysisInterval: null,    // 分析定时器
+            currentScene: null,        // 当前场景
+            currentPose: null,         // 当前推荐姿势
+            voiceEnabled: true,        // 语音引导开关
+            analysisFrequency: 3000,   // 分析频率 (ms)
+            canvas: null,              // 截图画布
+            ctx: null,                 // 画布上下文
+            recognition: null,         // 语音识别对象
+            userSpeechBuffer: '',     // 语音缓冲区
+            isRecording: false,        // 是否正在录音
+            silenceTimer: null,        // 静音提交定时器
+
+            // 初始化 Agent
+            init() {
+                this.canvas = document.createElement('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.initSpeechRecognition();
+                console.log('🚀 Focal Agent 初始化完成');
+            },
+
+            // 初始化语音识别
+            initSpeechRecognition() {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    console.error('❌ 浏览器不支持 Web Speech API');
+                    return;
+                }
+
+                this.recognition = new SpeechRecognition();
+                this.recognition.continuous = true;
+                this.recognition.interimResults = true;
+                this.recognition.lang = 'zh-CN';
+
+                this.recognition.onstart = () => {
+                    this.isRecording = true;
+                    const aiIcon = document.getElementById('aiIcon');
+                    if (aiIcon) aiIcon.classList.add('is-listening');
+                    console.log('🎙️ 语音识别已启动');
+                };
+
+                this.recognition.onresult = (event) => {
+                    let interimTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            this.userSpeechBuffer += event.results[i][0].transcript;
+
+                            // [Fix] 仅在有内容时打印，避免空白日志造成的困惑
+                            if (this.userSpeechBuffer.trim()) {
+                                console.log('🗣️ 最终结果:', this.userSpeechBuffer);
+                                showFeedback(`“${this.userSpeechBuffer}”`, 1000);
+                                this.handleSpeechInput();
+                            }
+                        } else {
+                            interimTranscript += event.results[i][0].transcript;
+                        }
+                    }
+
+                    // 当用户说话时，显示实时预览
+                    if (interimTranscript.length > 0) {
+                        const feedback = document.getElementById('feedback');
+                        if (feedback) {
+                            feedback.textContent = `听到了: ${interimTranscript}...`;
+                            feedback.classList.remove('fade-out');
+                        }
+
+                        // 打断逻辑：停止 AI 说话
+                        if (speechSynthesis.speaking) {
+                            speechSynthesis.cancel();
+                        }
+                    }
+                };
+
+                this.recognition.onerror = (event) => {
+                    console.error('🎤 语音识别错误:', event.error);
+                    if (event.error === 'no-speech') return;
+                    this.isRecording = false;
+                };
+
+                this.recognition.onend = () => {
+                    this.isRecording = false;
+                    const aiIcon = document.getElementById('aiIcon');
+                    if (aiIcon) aiIcon.classList.remove('is-listening');
+
+                    // 如果 Agent 仍然激活，则重启识别（实现持续监听）
+                    if (this.isActive) {
+                        setTimeout(() => this.startVoiceRecognition(), 500);
+                    }
+                };
+            },
+
+            // ==================== AR 姿势引导 ====================
+
+            updatePoseGuide(poseId) {
+                const overlay = document.getElementById('poseOverlay');
+                if (!overlay) return;
+
+                // 查找路径，没有则用 default
+                const pathData = POSE_PATHS[poseId] || POSE_PATHS["default"];
+
+                // 生成 SVG
+                const svgContent = `
+                    <svg viewBox="0 0 300 600" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%;">
+                        <path d="${pathData}" class="pose-path" vector-effect="non-scaling-stroke"/>
+                    </svg>
+                `;
+
+                overlay.innerHTML = svgContent;
+                overlay.classList.add('active');
+
+                // 自动淡出逻辑 (可选)
+                /*
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                }, 8000);
+                */
+            },
+
+
+
+            // 处理语音输入：检测到有效输入后触发分析
+            handleSpeechInput() {
+                if (this.userSpeechBuffer.trim().length > 0) {
+                    clearTimeout(this.silenceTimer);
+                    this.silenceTimer = setTimeout(() => {
+                        console.log('🚦 触发综合分析请求...');
+                        this.senseAndDecide(this.userSpeechBuffer);
+                        this.userSpeechBuffer = ''; // 发送后清空
+                    }, 800);
+                }
+            },
+
+            // 开启语音监听
+            startVoiceRecognition() {
+                if (this.recognition && !this.isRecording) {
+                    try {
+                        this.recognition.start();
+                    } catch (e) {
+                        console.warn('语音启动警告:', e);
+                    }
+                }
+            },
+
+            // 停止语音监听
+            stopVoiceRecognition() {
+                if (this.recognition && this.isRecording) {
+                    this.recognition.stop();
+                }
+            },
+
+            // 唤醒 Agent（点击✨图标时触发）
+            async wake() {
+                if (this.isActive) {
+                    this.sleep();
+                    return;
+                }
+
+                this.isActive = true;
+                console.log('✨ Focal Agent 已唤醒');
+                showFeedback('focal 正在分析场景...');
+
+                // 立即进行第一次分析
+                await this.senseAndDecide();
+
+                // 启动持续感知循环
+                this.startGuidanceLoop();
+
+                // 启动语音监听
+                this.startVoiceRecognition();
+            },
+
+            // 休眠 Agent - 完全停止 AI 分析和语音
+            sleep() {
+                this.isActive = false;
+                this.isAnalyzing = false;
+
+                // 1. 停止循环逻辑
+                this.stopGuidanceLoop();
+
+                // 2. 停止语音识别 (核心：切断耳朵)
+                this.stopVoiceRecognition();
+
+                // 3. 停止语音输出 (核心：切断嘴巴)
+                if ('speechSynthesis' in window) {
+                    speechSynthesis.cancel();
+                }
+
+                // 4. 清理 UI 覆盖层
+                const aiIcon = document.getElementById('aiIcon');
+                if (aiIcon) aiIcon.classList.remove('is-listening');
+
+                // 隐藏 AR 引导线
+                this.updatePoseGuide("none"); // 传入无效 ID 可清除，或者调用 hidePoseGuide 如果有的话
+                // 由于 updatePoseGuide 只是加内容，我们需要一个清理逻辑。
+                // 既然定义了 hidePoseGuide (之前没加进 FocalAgent, 只是全局函数? 不, 我上一步加的是 updatePoseGuide)
+                // 让我直接操作 DOM 移除 active class 吧，或者传入 null
+                const overlay = document.getElementById('poseOverlay');
+                if (overlay) {
+                    overlay.classList.remove('active');
+                    overlay.innerHTML = '';
+                }
+
+                console.log('😴 Focal Agent 已休眠 - 麦克风已释放');
+                showFeedback('focal 已关闭', 1000);
+            },
+
+            // 感知当前画面
+            async captureFrame() {
+                const video = document.getElementById('video');
+                if (!video || !video.videoWidth) return null;
+
+                // 设置画布尺寸
+                const scale = 0.35;  // [优化] 进一步降低分辨率以加快上传速度 (Race Mode Ready)
+                this.canvas.width = video.videoWidth * scale;
+                this.canvas.height = video.videoHeight * scale;
+
+                // 绘制当前帧
+                this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
+
+                // 转换为 base64 (使用 webp 格式，体积更小)
+                // [优化] 质量降至 0.6，视觉识别不受影响但体积减半
+                const imageData = this.canvas.toDataURL('image/webp', 0.6);
+                return imageData.split(',')[1];  // 返回纯 base64
+            },
+
+            // ==================== B. 导演决策 (The Director) ====================
+
+            async senseAndDecide(userMessage = null) {
+                if (this.isAnalyzing) return null;
+
+                this.isAnalyzing = true;
+
+                try {
+                    // 感知：捕获当前画面
+                    const imageBase64 = await this.captureFrame();
+                    if (!imageBase64) {
+                        console.warn('⚠️ 无法捕获画面');
+                        return null;
+                    }
+
+                    console.log('📷 已捕获画面，发送至 Director...');
+
+                    // 决策：调用 AI Director API
+                    const response = await fetch(`${API_BASE}/analyze_image`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image_base64: imageBase64,
+                            image_format: 'webp',
+                            user_message: userMessage || this.userSpeechBuffer
+                        })
+                    });
+
+                    // 清空已发送的缓冲区（如果是通过轮询发送的）
+                    if (!userMessage) this.userSpeechBuffer = '';
+
+                    if (!response.ok) {
+                        throw new Error(`API 错误: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+
+                    if (result.success && result.data) {
+                        console.log('🎬 Director 决策:', result.data);
+                        return this.processDirectorDecision(result.data);
+                    }
+
+                } catch (error) {
+                    console.error('❌ Director 调用失败:', error);
+                    showFeedback('⚠️ AI 连接失败', 2000);
+                } finally {
+                    this.isAnalyzing = false;
+                }
+
+                return null;
+            },
+
+            // 处理 Director 的决策
+            processDirectorDecision(decision) {
+                const { detected_scene, scene_analysis, recommended_pose_id, voice_feedback, action } = decision;
+
+                // 更新当前状态
+                // 更新当前状态
+                this.currentScene = detected_scene;
+                this.currentPose = recommended_pose_id;
+
+                // C. AR 初始化 - 显示引导信息
+                // this.setupARGuidance(decision);
+
+                // 显示姿势引导线 (NEW)
+                if (recommended_pose_id) {
+                    this.updatePoseGuide(recommended_pose_id);
+                }
+
+                // D. 根据 action 执行对应操作
+                switch (action) {
+                    case 'capture':
+                        // 立即拍照
+                        if (!this.voiceEnabled) showFeedback('📸 准备拍摄...', 1000);
+                        setTimeout(() => this.capturePhoto(), 1000);
+                        break;
+
+                    case 'change_pose':
+                    case 'talk':
+                    case 'continue':
+                    default:
+                        // 如果没有语音，手动显示反馈
+                        if (!this.voiceEnabled && voice_feedback) {
+                            showFeedback(voice_feedback, 2000);
+                        }
+                        break;
+                }
+
+                // 语音反馈（同时显示字幕）
+                if (this.voiceEnabled && voice_feedback) {
+                    this.speak(voice_feedback);
+                }
+
+                return decision;
+            },
+
+            // ==================== C. AR 初始化 (AR Setup) ====================
+
+            setupARGuidance(decision) {
+                // 更新场景信息（如果需要显示在 UI 上）
+                if (decision.scene_analysis) {
+                    console.log('🌄 场景分析:', decision.scene_analysis);
+                }
+
+                // 更新推荐姿势（如果需要显示在 UI 上）
+                if (decision.recommended_pose_id) {
+                    console.log('💃 推荐姿势:', decision.recommended_pose_id);
+                }
+            },
+
+            // ==================== D. 实时引导闭环 (The Guidance Loop) ====================
+
+            startGuidanceLoop() {
+                if (this.analysisInterval) return;  // 避免重复启动
+
+                console.log('🔄 启动实时引导循环');
+
+                this.analysisInterval = setInterval(async () => {
+                    if (this.isActive && !this.isAnalyzing) {
+                        await this.senseAndDecide();
+                    }
+                }, this.analysisFrequency);
+            },
+
+            stopGuidanceLoop() {
+                if (this.analysisInterval) {
+                    clearInterval(this.analysisInterval);
+                    this.analysisInterval = null;
+                    console.log('⏹️ 停止实时引导循环');
+                }
+            },
+
+            // ==================== E. 完美拍摄 (Capture) ====================
+
+            async capturePhoto() {
+                const video = document.getElementById('video');
+                if (!video) return;
+
+                // 创建全分辨率截图
+                const captureCanvas = document.createElement('canvas');
+                captureCanvas.width = video.videoWidth;
+                captureCanvas.height = video.videoHeight;
+                const ctx = captureCanvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+
+                // 获取图片数据
+                const imageData = captureCanvas.toDataURL('image/jpeg', 0.95);
+
+                // 显示拍摄成功
+                showFeedback('📸 拍摄成功！', 2000);
+
+                // 语音反馈
+                if (this.voiceEnabled) {
+                    this.speak('很好，这张很棒！');
+                }
+
+                // 下载图片
+                const link = document.createElement('a');
+                link.download = `focal_${Date.now()}.jpg`;
+                link.href = imageData;
+                link.click();
+
+                console.log('📷 照片已保存');
+            },
+
+            // 语音反馈（使用 Web Speech API，元气活泼的声音）
+            // 同时显示字幕，语音和文字完全同步
+            speak(text) {
+                if (!this.voiceEnabled) return;
+
+                // 显示字幕（与语音同步）
+                showFeedback(text, 0);  // 持续显示，不自动消失
+
+                if ('speechSynthesis' in window) {
+                    // 取消之前的语音，避免重叠
+                    speechSynthesis.cancel();
+
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'zh-CN';
+                    utterance.rate = 1.4;    // 更快的语速
+                    utterance.pitch = 1.3;   // 较高的音调，更元气
+                    utterance.volume = 0.9;
+
+                    // 选择女声（更活泼）
+                    const voices = speechSynthesis.getVoices();
+                    const femaleVoice = voices.find(v =>
+                        v.lang.includes('zh') && (v.name.includes('Female') || v.name.includes('女') || v.name.includes('Ting'))
+                    );
+                    if (femaleVoice) utterance.voice = femaleVoice;
+
+                    // 语音结束后隐藏字幕
+                    utterance.onend = () => {
+                        setTimeout(() => {
+                            const feedback = document.getElementById('feedback');
+                            if (feedback) feedback.classList.add('fade-out');
+                        }, 300);
+                    };
+
+                    speechSynthesis.speak(utterance);
+                } else {
+                    // 没有语音API时，0.8秒后消失
+                    setTimeout(() => {
+                        const feedback = document.getElementById('feedback');
+                        if (feedback) feedback.classList.add('fade-out');
+                    }, 800);
+                }
+            }
+        };
+
+        // ==================== UI 交互增强 ====================
+
+        // 显示反馈信息（支持长文本分段显示）
+        let feedbackQueue = [];
+        let isShowingFeedback = false;
+
+        function showFeedback(text, duration = 800) {
+            const feedback = document.getElementById('feedback');
+            if (!feedback) return;
+
+            // 按标点符号分割长文本
+            const maxLength = 20;  // 每段最大字符数
+            if (text.length > maxLength) {
+                // 按逗号、句号等分割
+                const segments = text.split(/([，,。！？、])/);
+                let currentSegment = '';
+                const parts = [];
+
+                for (let i = 0; i < segments.length; i++) {
+                    currentSegment += segments[i];
+                    if (currentSegment.length >= maxLength || i === segments.length - 1) {
+                        if (currentSegment.trim()) {
+                            parts.push(currentSegment.trim());
+                        }
+                        currentSegment = '';
+                    }
+                }
+
+                // 加入队列依次显示
+                if (parts.length > 1) {
+                    parts.forEach((part, index) => {
+                        feedbackQueue.push({ text: part, duration: duration || 1200 });
+                    });
+                    processQueue();
+                    return;
+                }
+            }
+
+            // 直接显示
+            feedback.textContent = text;
+            feedback.classList.remove('fade-out');
+
+            if (duration > 0) {
+                setTimeout(() => {
+                    feedback.classList.add('fade-out');
+                }, duration);
+            }
+        }
+
+        function processQueue() {
+            if (isShowingFeedback || feedbackQueue.length === 0) return;
+
+            isShowingFeedback = true;
+            const item = feedbackQueue.shift();
+            const feedback = document.getElementById('feedback');
+
+            feedback.textContent = item.text;
+            feedback.classList.remove('fade-out');
+
+            setTimeout(() => {
+                feedback.classList.add('fade-out');
+                setTimeout(() => {
+                    isShowingFeedback = false;
+                    processQueue();
+                }, 500);
+            }, item.duration);
+        }
+
+        // 重写 toggleAI 以集成 Agent
+        function toggleAI() {
+            const icon = document.getElementById('aiIcon');
+            icon.classList.toggle('active');
+
+            if (icon.classList.contains('active')) {
+                FocalAgent.wake();
+            } else {
+                FocalAgent.sleep();
+            }
+        }
+
+        // 重写 capture 以使用 Agent
+        function capture() {
+            if (FocalAgent.isActive) {
+                FocalAgent.capturePhoto();
+            } else {
+                showFeedback('📸 拍摄成功！', 2000);
+            }
+        }
+
+        // 语音开关
+        function toggleVoice(element) {
+            element.classList.toggle('active');
+            FocalAgent.voiceEnabled = element.classList.contains('active');
+            showFeedback(FocalAgent.voiceEnabled ? '语音引导已开启' : '语音引导已关闭', 1000);
+        }
+
+        // 初始化
+        FocalAgent.init();
+        startCamera();
+    </script>
+</body>
+
+</html>
