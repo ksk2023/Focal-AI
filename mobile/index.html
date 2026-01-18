@@ -1453,13 +1453,12 @@
         // 流程: 唤醒感知 → 导演决策 → AR初始化 → 实时引导 → 完美拍摄
 
         // 优先从 URL 参数获取 API 地址
-        // 魔搭创空间环境下使用相对路径 /api，本地开发使用 8000 端口
+        // 如果没有参数，且当前非 localhost，则尝试使用同域名的 8000 端口
         const urlParams = new URLSearchParams(window.location.search);
-        let defaultApi = '/api';  // 默认使用相对路径，适配创空间 Nginx 代理
+        let defaultApi = 'http://localhost:8000';
 
-        // 本地开发环境使用直连后端
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            defaultApi = 'http://localhost:8000';
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            defaultApi = `http://${window.location.hostname}:8000`;
         }
 
         const API_BASE = urlParams.get('api') || defaultApi;

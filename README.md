@@ -1,75 +1,301 @@
----
-title: FocalAI - AI Photography Assistant
-emoji: camera
-colorFrom: blue
-colorTo: purple
-sdk: docker
-domain: multi-modal
-tags:
-  - ai-photography
-  - pose-detection
-  - mediapipe
-  - fastapi
-license: Apache License 2.0
+# 📸 AI 拍照助手
+
+> 🏆 黑客松项目 - 让每一张照片都完美
+
+一个基于 AI 的智能拍照引导系统，帮助不会拍照的人群通过 AI 指导站位、调整姿势，最终拍出美美的照片。
+
 ---
 
-# FocalAI - AI Photography Assistant
+## ✨ 功能特点
 
-AI拍照助手 - 帮助不会拍照的人群拍出美美的照片
+- 🎯 **智能场景分析** - 大模型 Vision API 分析环境光线和背景
+- 🦴 **实时骨骼检测** - MediaPipe 33个关键点追踪
+- 📊 **姿态匹配算法** - 余弦相似度精准计算匹配度
+- 🎭 **可视化引导框** - 绿色虚线显示目标姿势
+- 🔊 **语音反馈** - 浏览器 TTS 实时语音指导
+- 📸 **自动拍照** - 匹配度达标自动倒计时拍照
+- 📱 **手机端优化** - PWA 支持，可添加到主屏幕
 
-## Features
+---
 
-- AI Director: 智能场景分析与构图建议
-- Pose Guidance: 实时姿势引导与 AR 叠加
-- Style Learning: 学习用户喜好的拍照风格
-- Voice Feedback: 语音反馈指导
+## 📋 系统要求
 
-## Architecture
+- Python 3.9+
+- 手机或电脑（需要摄像头）
+- 现代浏览器（Chrome / Safari 推荐）
 
-```
-Frontend (Mobile UI)  ──┐
-                        ├──> Nginx (7860) ──> Backend (FastAPI 8000)
-                        │
-Static HTML/JS    <─────┘
-```
+---
 
-## Environment Variables
+## 🚀 快速开始 (SOP 标准流程)
 
-在魔搭创空间的「设置」中配置以下环境变量（至少配置一个 AI 模型的 API Key）：
-
-| 变量名 | 说明 |
-|--------|------|
-| `MINIMAX_API_KEY` | MiniMax API Key (推荐) |
-| `MINIMAX_GROUP_ID` | MiniMax Group ID |
-| `QWEN_API_KEY` | 通义千问 API Key |
-| `ZHIPU_API_KEY` | 智谱 GLM API Key |
-| `OPENAI_API_KEY` | OpenAI API Key |
-| `GEMINI_API_KEY` | Google Gemini API Key |
-
-## Local Development
+### 1. 安装依赖
 
 ```bash
-# Clone
-git clone https://www.modelscope.cn/studios/kskyqsl/FocalAI.git
-cd FocalAI
+# 创建虚拟环境
+conda create -n huanqiu python=3.11 -y
+conda activate huanqiu
 
-# Setup
-cp .env.example .env
-# Edit .env and add your API keys
-
-# Run backend
+# 安装依赖
+cd /home/keshankun/HUANQIU
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-
-# Run frontend (in another terminal)
-cd mobile
-python -m http.server 3001
-
-# Access: http://localhost:3001?api=http://localhost:8000
 ```
 
-## Clone with HTTP
+### 2. 配置 API Key
 
 ```bash
-git clone https://www.modelscope.cn/studios/kskyqsl/FocalAI.git
+cp .env.example .env
+# 编辑 .env 文件，填入以下 API Key（至少配置一个）
+# MINIMAX_API_KEY=xxx  (推荐，用于视觉分析)
+# STEPFUN_API_KEY=xxx  (推荐，用于语音合成 TTS)
 ```
+
+### 3. 启动服务 (两个终端)
+
+**终端 1 - 启动后端 API：**
+
+```bash
+cd /home/keshankun/HUANQIU
+python main.py
+# 后端运行在 http://localhost:8000
+```
+
+**终端 2 - 启动前端页面：**
+
+```bash
+cd /home/keshankun/HUANQIU/mobile
+python -m http.server 3001
+# 前端运行在 http://localhost:3001
+```
+
+### 4. 打开应用
+
+在浏览器中访问：
+
+- 👉 **[http://localhost:3001/](http://localhost:3001/)**
+
+---
+
+## 🎨 个人知识库 (Personal Style Library) SOP
+
+AI 会学习您上传的风格照片，并在后续拍摄中记住您的偏好。
+
+### 步骤 1: 上传风格照片
+
+1. 打开应用，点击右上角 **设置按钮（三个点）**
+2. 在 **个人风格库** 区域，点击 **+** 按钮上传照片
+3. 选择您喜欢的摄影风格照片（可多选）
+
+### 步骤 2: AI 学习风格
+
+- 上传后，AI 会自动分析照片的构图、色调、氛围
+- 分析完成后，会显示提取的风格描述
+
+### 步骤 3: 本地隐私存储
+
+- 您的照片会保存在本地：`/home/keshankun/HUANQIU/user_styles/images/`
+- AI 提取的风格画像保存在：`/home/keshankun/HUANQIU/user_styles/profile.json`
+- **100% 本地存储**，不上传云端，确保隐私
+
+### 步骤 4: 持久化记忆
+
+- 重启后端后，AI 会自动加载您之前的风格偏好
+- 无需重复上传，AI 会一直记得您的喜好
+
+---
+
+## 🎥 使用演示界面 SOP
+
+### 界面说明
+
+- **左上角 ✨** - AI 开关（点击激活/停用 AI 实时分析）
+- **右上角 ⋮** - 设置面板入口
+- **底部拍照按钮** - 手动拍照
+- **变焦控制** - 0.5x / 0.75x / 1x / 1.25x / 1.5x
+
+### 输出设置（设置 > 输出设置）
+
+| 选项 | 说明 |
+|------|------|
+| **屏幕占比** | 切换取景器比例：1:1 / 4:3 / 16:9 / 全屏 |
+| **九宫格引导** | 显示构图辅助线 |
+| **语音反馈** | 开启/关闭 AI 语音提示 |
+| **文本反馈** | 显示/隐藏屏幕文字提示 |
+| **虚线框反馈** | 显示/隐藏 AR 姿势引导 |
+
+---
+
+## 📖 使用教程
+
+### 基本使用流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. 手机浏览器打开应用地址                                    │
+│                    ↓                                        │
+│  2. 允许摄像头权限                                           │
+│                    ↓                                        │
+│  3. 选择目标姿势（右上角下拉菜单）                            │
+│                    ↓                                        │
+│  4. 点击 ▶️ 开始引导                                         │
+│                    ↓                                        │
+│  5. 屏幕出现绿色虚线框（目标姿势）                            │
+│                    ↓                                        │
+│  6. 移动身体，对齐绿色虚线框                                  │
+│                    ↓                                        │
+│  7. 观察左上角匹配度分数                                     │
+│                    ↓                                        │
+│  8. 匹配度 ≥85% 持续 2 秒 → 自动倒计时 3-2-1                  │
+│                    ↓                                        │
+│  9. 📸 咔嚓！自动拍照                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 界面说明
+
+| 区域 | 说明 |
+|------|------|
+| 左上角 | 匹配度分数（绿色=高，黄色=中，红色=低） |
+| 右上角 | 姿势选择下拉菜单 |
+| 底部中间 | ▶️ 开始/暂停引导 |
+| 底部左侧 | 🔊 语音开关 |
+| 底部右侧 | 📷 手动拍照 |
+| 左下角 | 最近拍摄的照片预览 |
+
+### 图例说明
+
+- 🟢 **绿色虚线** - 目标姿势引导框（跟着它站）
+- ⚪ **白色实线** - 你的实时骨骼位置
+- 📊 **分数颜色** - 绿色(≥70%) / 黄色(50-70%) / 红色(<50%)
+
+### 可选姿势
+
+| 姿势 | 名称 | 描述 |
+|------|------|------|
+| 🧍 | 自然站立 | 双手自然下垂的放松站姿 |
+| 🚶 | 倚靠墙壁 | 一手叉腰靠墙的休闲姿势 |
+| ✌️ | 比耶 | 举手比耶的活泼姿势 |
+| ☕ | 坐着喝东西 | 坐姿手持饮品的休闲姿态 |
+| 🚶‍♂️ | 背影行走 | 背对镜头行走的自然姿态 |
+
+---
+
+## 🛠 高级功能
+
+### 录制自定义姿势
+
+你可以录制自己的姿势并保存到 `poses.json`：
+
+```bash
+python record_pose.py
+```
+
+操作说明：
+
+- 按 `s` - 保存当前姿势
+- 按 `q` - 退出程序
+
+### 后端 API 接口
+
+启动 `python main.py` 后可用：
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/analyze_image` | POST | 分析图片，返回拍照建议 |
+| `/match_pose` | POST | 实时姿态匹配 |
+| `/pose_library` | GET | 获取支持的姿势库 |
+| `/providers` | GET | 查看可用的 AI 模型 |
+| `/health` | GET | 健康检查 |
+
+**API 文档**：<http://localhost:8000/docs>
+
+---
+
+## 📁 项目结构
+
+```
+HUANQIU/
+├── mobile/             # 📱 移动端前端
+│   ├── index.html      # 主应用
+│   ├── manifest.json   # PWA 配置
+│   └── poses.json      # 姿势数据
+├── main.py             # 后端 API 服务
+├── pose_matcher.py     # 姿态匹配算法
+├── poses.json          # 预设姿势坐标
+├── record_pose.py      # 姿势录制工具
+├── requirements.txt    # Python 依赖
+├── .env.example        # 环境变量模板
+└── README.md           # 本文档
+```
+
+---
+
+## 🔌 支持的 AI 模型
+
+| 模型 | 提供商 | 环境变量 |
+|------|--------|----------|
+| **MiniMax** | MiniMax | `MINIMAX_API_KEY` |
+| 通义千问 | 阿里云 | `QWEN_API_KEY` |
+| 智谱 GLM-4V | 智谱AI | `ZHIPU_API_KEY` |
+| 月之暗面 Kimi | Moonshot | `MOONSHOT_API_KEY` |
+| 阶跃星辰 | StepFun | `STEPFUN_API_KEY` |
+| GPT-4o | OpenAI | `OPENAI_API_KEY` |
+| Gemini | Google | `GEMINI_API_KEY` |
+| 百川 | Baichuan | `BAICHUAN_API_KEY` |
+| DeepSeek | DeepSeek | `DEEPSEEK_API_KEY` |
+
+---
+
+## 🐛 常见问题
+
+### Q: 摄像头打不开？
+
+**A:**
+
+1. 确保使用 HTTPS 或 localhost（Chrome 要求）
+2. 在浏览器设置中允许摄像头权限
+3. 确保没有其他应用占用摄像头
+
+### Q: 手机无法访问？
+
+**A:**
+
+1. 确保手机和电脑在同一 WiFi
+2. 检查电脑防火墙是否阻止了 8080 端口
+3. 使用正确的电脑 IP 地址
+
+### Q: 骨骼检测不准确？
+
+**A:**
+
+1. 确保光线充足
+2. 穿着与背景对比明显的衣服
+3. 全身在画面内
+
+---
+
+## 🔧 技术栈
+
+| 组件 | 技术 |
+|------|------|
+| 移动端前端 | HTML5 + CSS3 + JavaScript (PWA) |
+| 后端框架 | FastAPI |
+| 姿态检测 | MediaPipe Pose (JS/Python) |
+| AI 分析 | MiniMax / 通义千问 / GPT-4o 等 |
+| 语音反馈 | Web Speech API |
+| 算法 | 余弦相似度 (Cosine Similarity) |
+
+---
+
+## 📄 License
+
+MIT License
+
+---
+
+## 👥 团队
+
+黑客松项目 - AI 拍照助手
+
+---
+
+> 💡 **提示**：演示时建议提前测试摄像头和网络环境！
