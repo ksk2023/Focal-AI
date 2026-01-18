@@ -1,28 +1,44 @@
 #!/bin/bash
 
-# Kill ports if needed (optional, uncomment if you want auto-cleanup)
-# fuser -k 8000/tcp
-# fuser -k 3001/tcp
+echo "=========================================="
+echo "  FocalAI - AI Photography Assistant"
+echo "=========================================="
 
-echo "🚀 Starting AI Photography Assistant..."
+# Create persistent storage directory
+mkdir -p /mnt/workspace/user_styles/images 2>/dev/null || mkdir -p /home/user/app/user_styles/images
 
-# Start Backend
-echo "Starting Backend (Port 8000)..."
-nohup uvicorn main:app --reload --port 8000 > backend.log 2>&1 &
+# Start FastAPI backend (python main.py)
+echo "Starting FastAPI backend on port 8000..."
+cd /home/user/app
+python main.py &
 BACKEND_PID=$!
 
-# Start Frontend
-echo "Starting Frontend (Port 3001)..."
-cd mobile
-nohup python -m http.server 0.0.0.0:3001 > frontend.log 2>&1 &
-FRONTEND_PID=$!
-cd ..
+# Wait for backend to be ready
+echo "Waiting for backend to start..."
+sleep 5
 
-echo "✅ Services started!"
-echo "-----------------------------------"
-echo "📱 Frontend: http://$(hostname -I | awk '{print $1}'):3001"
-echo "🔧 Backend:  http://$(hostname -I | awk '{print $1}'):8000"
-echo "📱 手机访问: http://$(hostname -I | awk '{print $1}'):3001?api=http://$(hostname -I | awk '{print $1}'):8000"
-echo "-----------------------------------"
-echo "Logs are being written to backend.log and mobile/frontend.log"
-echo "To stop services, run: kill $BACKEND_PID $FRONTEND_PID"
+for i in {1..10}; do
+    if curl -s http://127.0.0.1:8000/ > /dev/null 2>&1; then
+        echo "Backend is ready!"
+        break
+    fi
+    echo "Waiting... ($i/10)"
+    sleep 2
+done
+
+# Start Nginx (serves frontend on port 7860)
+echo "Starting Nginx on port 7860..."
+nginx -g 'daemon off;' &
+NGINX_PID=$!
+
+echo "=========================================="
+echo "Services started!"
+echo "Frontend: http://localhost:7860"
+echo "API: http://localhost:7860/api/"
+echo "Docs: http://localhost:7860/docs"
+echo "=========================================="
+
+# Handle shutdown
+trap "kill $BACKEND_PID $NGINX_PID 2>/dev/null; exit 0" SIGTERM SIGINT
+
+wait $BACKEND_PID $NGINX_PID

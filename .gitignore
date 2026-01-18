@@ -21,4 +21,5 @@ venv/
 Thumbs.db
 
 # User data (persisted in /mnt/workspace)
-# user_styles/
+user_styles/
+.crush/
