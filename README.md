@@ -1,6 +1,23 @@
+<div align="center">
+
 # 📸 AI 拍照助手
 
-> 🏆 黑客松项目 - 让每一张照片都完美
+**《AI 引导站位与姿势 · 匹配度达标自动拍照》**
+
+[![Pose](https://img.shields.io/badge/Pose-MediaPipe%2033-8250df?style=flat)](#-功能特点)
+[![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat&logo=fastapi)](#-高级功能)
+[![Web](https://img.shields.io/badge/Web-PWA-5a0fc8?style=flat)](#-项目结构)
+[![License](https://img.shields.io/badge/license-MIT-d92922?style=flat)](#-license)
+[![Stars](https://img.shields.io/github/stars/ksk2023/Focal-AI?style=flat&logo=github&label=Stars&color=0969da)](https://github.com/ksk2023/Focal-AI/stargazers)
+[![Forks](https://img.shields.io/github/forks/ksk2023/Focal-AI?style=flat&logo=github&label=Forks&color=57606a)](https://github.com/ksk2023/Focal-AI/network)
+
+🏆 **黑客松项目 — 让每一张照片都完美**
+
+**目录：** [功能特点](#-功能特点) · [系统要求](#-系统要求) · [快速开始](#-快速开始-sop-标准流程) · [个人知识库](#-个人知识库-personal-style-library-sop) · [使用教程](#-使用教程) · [高级功能](#-高级功能) · [项目结构](#-项目结构) · [AI 模型](#-支持的-ai-模型) · [常见问题](#-常见问题) · [技术栈](#-技术栈)
+
+</div>
+
+---
 
 一个基于 AI 的智能拍照引导系统，帮助不会拍照的人群通过 AI 指导站位、调整姿势，最终拍出美美的照片。
 
@@ -299,3 +316,11 @@ MIT License
 ---
 
 > 💡 **提示**：演示时建议提前测试摄像头和网络环境！
+
+---
+
+<div align="center">
+
+**看得见的引导 · 听得见的反馈 · 拍得出的好照片**
+
+</div>
